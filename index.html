@@ -2712,9 +2712,15 @@
             <footer class="main-footer">
                 <div class="container footer-grid">
                     <div class="footer-info">
-                        <span class="brand-logo footer-logo" style="display: block; margin-bottom: 1rem;">
-                            ${state.header.logoImg ? `<img src="${state.header.logoImg}" alt="${state.header.logo}" style="height: 100px; filter: brightness(0) invert(1);">` : state.header.logo}
-                        </span>
+                        <div class="brand-logo footer-logo" style="display: block; margin-bottom: 1.5rem;">
+                            ${state.header.logoImg ? 
+                                `<img src="${state.header.logoImg}" alt="${state.header.logo}" style="height: 100px; filter: brightness(0) invert(1);">` : 
+                                `<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <span style="font-family: var(--font-logo); font-size: 3.5rem; line-height: 1.1; color: var(--accent-gold); display: block;">Hiyara</span>
+                                    <span style="font-family: 'Outfit', sans-serif; font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent-gold); opacity: 0.95; display: block; margin-left: 2px;">Modesty in Grace</span>
+                                 </div>`
+                            }
+                        </div>
                         <p>Elevating the art of jewelry with timeless sophistication.</p>
                     </div>
                     <div class="footer-links">
