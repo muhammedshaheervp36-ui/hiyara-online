@@ -3,17 +3,12 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="scripts/state-utils.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hiyara | Timeless Luxury Jewelry</title>
     <meta name="description" content="Discover Hiyara - Premium luxury jewelry crafted with timeless elegance.">
 
-    <!-- Global Error Handler -->
-    <script>
-        window.onerror = function (msg, url, lineNo, columnNo, error) {
-            document.body.innerHTML += `<div style="position:fixed;top:0;left:0;width:100%;background:red;color:white;padding:20px;z-index:999999;font-size:24px;"><b>JS Error:</b> ${msg}<br>Line: ${lineNo} Col: ${columnNo}</div>`;
-            return false;
-        };
-    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -1474,7 +1469,7 @@
             bestSellers: [
                 { id: 1, name: 'Golden Solitaire Ring', price: '₹95,000', category: 'Rings', img: 'FFF.jpeg', stock: 5 },
                 { id: 2, name: 'Diamond Drop Earrings', price: '₹1,50,000', category: 'Earrings', img: 'WhatsApp Image 2026-02-18 at 7.58.19 PM.jpeg', stock: 12 },
-                { id: 3, name: 'Pearl Essence Necklace', price: '₹68,000', category: 'Necklaces', img: 'WhatsApp Image 2026-02-18 at 7.54.06 PM.jpeg', stock: 0 },
+                { id: 3, name: 'Pearl Essence Necklace', price: '₹68,000', category: 'Necklace', img: 'WhatsApp Image 2026-02-18 at 7.54.06 PM.jpeg', stock: 0 },
                 { id: 4, name: 'Aura Gold Bangle', price: '₹1,25,000', category: 'Bracelets', img: 'WhatsApp Image 2026-02-18 at 7.58.23 PM.jpeg', stock: 8 }
             ],
             about: {
@@ -1491,11 +1486,18 @@
             currentUser: null // { name, email }
         };
 
+        function readState() { return HiyaraState.read(defaultState); }
+        const escapeHTML = HiyaraState.escapeHTML;
+        window.selectVariant = chip => {
+            chip.parentElement.querySelectorAll('.variant-chip').forEach(el => el.classList.remove('active'));
+            chip.classList.add('active');
+        };
+
         const saveState = () => {
             localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
         };
 
-        let state = JSON.parse(localStorage.getItem('hiyara_state_v1')) || defaultState;
+        let state = readState();
         // Migration: Ensure contact object exists for existing users
         if (!state.contact) {
             state.contact = defaultState.contact;
@@ -1518,6 +1520,7 @@
         if (state.bestSellers && state.bestSellers.length > 0) {
             let needsFix = false;
             state.bestSellers.forEach(p => {
+                p.price = String(p.price ?? '₹0');
                 const symbolCount = (p.price.match(/\u20B9/g) || []).length;
                 // Triggers if mangled characters exist, symbol count is not 1, or it doesn't start with the symbol
                 if (p.price.match(/[$\u00E2\u201A\u00B9?\uFFFD]/) || symbolCount !== 1 || !p.price.trim().startsWith('\u20B9')) {
@@ -1545,17 +1548,8 @@
             }
         }
 
-        // Migration: Add stock if missing
-        if (state.bestSellers && state.bestSellers.length > 0 && typeof state.bestSellers[0].stock === 'undefined') {
-            state.bestSellers.forEach((p, idx) => p.stock = (idx === 2 ? 0 : 10)); // Force 3rd item to be Out of Stock for demo
-            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-        }
-
-        // Migration: Update collections to user requested 11 items if it only has 4 or fewer
-        if (state.collections && state.collections.length <= 4) {
-            state.collections = defaultState.collections;
-            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-        }
+        // Preserve intentionally empty collections and existing inventory counts.
+        state.bestSellers.forEach(p => { if (!Number.isInteger(p.stock) || p.stock < 0) p.stock = 0; });
 
         const createPlaceholder = (width, height, text) => {
             const bg = '#F5F1EB';
@@ -1583,12 +1577,12 @@
         if (!state.hero.image || state.hero.image === 'assets/hero-bg.jpg' || state.hero.image.includes('WhatsApp Image') || state.hero.image === 'FFF.jpeg' || state.hero.image.startsWith('data:image/svg+xml')) state.hero.image = createPlaceholder(1920, 1080, 'Timeless Elegance');
         if (state.collections) {
             state.collections.forEach(c => {
-                if (!c.img || c.img === 'FFF.jpeg' || c.img.includes('WhatsApp Image') || c.img.includes('assets/') || c.img.startsWith('data:image/svg+xml')) c.img = createPlaceholder(400, 600, c.name);
+                if (!c.img || c.img === 'FFF.jpeg' || c.img.includes('WhatsApp Image') || c.img.startsWith('data:image/svg+xml')) c.img = createPlaceholder(400, 600, c.name);
             });
         }
         if (state.bestSellers) {
             state.bestSellers.forEach(p => {
-                if (!p.img || p.img === 'FFF.jpeg' || p.img.includes('WhatsApp Image') || p.img.includes('assets/') || p.img.startsWith('data:image/svg+xml')) p.img = createPlaceholder(400, 400, p.name);
+                if (!p.img || p.img === 'FFF.jpeg' || p.img.includes('WhatsApp Image') || p.img.startsWith('data:image/svg+xml')) p.img = createPlaceholder(400, 400, p.name);
             });
         }
         if (state.about && (!state.about.img || state.about.img === 'WhatsApp Image 2026-02-18 at 7.54.06 PM.jpeg' || state.about.img.startsWith('data:image/svg+xml'))) state.about.img = createPlaceholder(800, 600, 'Our Story');
@@ -1610,6 +1604,9 @@
             },
             addItem(product, variant = { size: 'Standard', color: 'Gold' }) {
                 if (!state.cart) state.cart = [];
+                const current = state.bestSellers.find(p => p.id === product.id);
+                const count = state.cart.filter(i => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0);
+                if (!current || count >= current.stock) { alert('Available stock limit reached.'); return false; }
                 const existing = state.cart.find(item => item.id === product.id && JSON.stringify(item.variant) === JSON.stringify(variant));
                 if (existing) {
                     existing.quantity += 1;
@@ -1622,11 +1619,17 @@
                 }
                 this.save();
                 showToast(`${product.name} added to bag!`);
+                return true;
             },
             updateQty(index, newQty) {
                 const cart = this.getCart();
                 if (cart[index]) {
-                    cart[index].quantity = Math.max(1, newQty);
+                    const product = state.bestSellers.find(p => p.id === cart[index].id);
+                    const others = cart.filter((i, n) => n !== index && i.id === cart[index].id).reduce((sum, i) => sum + i.quantity, 0);
+                    if (!Number.isInteger(newQty) || newQty < 1 || !product || newQty + others > product.stock) {
+                        alert('Available stock limit reached.'); return;
+                    }
+                    cart[index].quantity = newQty;
                     this.save();
                 }
             },
@@ -1660,16 +1663,16 @@
             getSummary() {
                 const cart = this.getCart();
                 const subtotal = cart.reduce((sum, item) => {
-                    const price = parseInt(item.price.replace(/[^0-9]/g, ''));
+                    const price = Number(String(item.price).replace(/[^0-9.]/g, '')) || 0;
                     return sum + (price * item.quantity);
                 }, 0);
                 const taxRate = 0.08;
-                const tax = Math.round(subtotal * taxRate);
+                const tax = Math.round(subtotal * taxRate * 100) / 100;
                 let discount = 0;
                 if (state.promoCode === 'DISCOUNT10') {
-                    discount = Math.round(subtotal * 0.10);
+                    discount = Math.round(subtotal * 0.10 * 100) / 100;
                 }
-                const total = subtotal + tax - discount;
+                const total = Math.round((subtotal + tax - discount) * 100) / 100;
                 return {
                     subtotal,
                     tax,
@@ -1679,33 +1682,6 @@
                 };
             }
         };
-
-        // Initialize realistic mock data for testing if cart is empty
-        if (!state.cart || state.cart.length === 0) {
-            state.cart = [
-                {
-                    id: 1,
-                    name: 'Golden Solitaire Ring',
-                    price: '₹95,000',
-                    category: 'Rings',
-                    img: state.bestSellers.find(p => p.id === 1)?.img || createPlaceholder(400, 400, 'Golden Solitaire Ring'),
-                    stock: 5,
-                    quantity: 1,
-                    variant: { size: 'Standard', color: 'Gold' }
-                },
-                {
-                    id: 2,
-                    name: 'Diamond Drop Earrings',
-                    price: '₹1,50,000',
-                    category: 'Earrings',
-                    img: state.bestSellers.find(p => p.id === 2)?.img || createPlaceholder(400, 400, 'Diamond Drop Earrings'),
-                    stock: 12,
-                    quantity: 2,
-                    variant: { size: 'Standard', color: 'White Gold' }
-                }
-            ];
-            saveState();
-        }
 
         const components = {
             renderHeader() {
@@ -1722,7 +1698,7 @@
 
                         <div class="logo-container">
                             <a href="/" class="brand-logo">
-                                ${state.header.logo}
+                                ${escapeHTML(state.header.logo)}
                             </a>
                         </div>
 
@@ -1749,10 +1725,11 @@
                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                                         </button>
                                         <div class="account-dropdown" id="accountDropdown">
-                                            <div style="padding: 10px 20px; font-weight: 600; color: var(--accent-gold); border-bottom: 1px solid #eee;">Hi, ${state.currentUser.name}</div>
+                                            <div style="padding: 10px 20px; font-weight: 600; color: var(--accent-gold); border-bottom: 1px solid #eee;">Hi, ${escapeHTML(state.currentUser.name)}</div>
                                             <a href="#myaccount">My Account</a>
                                             <a href="#orders">My Orders</a>
                                             <a href="#shipping">Shipping Address</a>
+                                            <a href="admin.html" target="_blank">Admin Panel &nearr;</a>
                                             <a href="#" onclick="handleLogout()">Log Out</a>
                                         </div>
                                     ` : `
@@ -1778,9 +1755,9 @@
                     <section class="hero-section">
                         <div class="hero-overlay"></div>
                         <div class="hero-content container">
-                            <h1 class="hero-heading slide-up">${state.hero.heading}</h1>
-                            <p class="hero-subheading slide-up-delayed">${state.hero.subheading}</p>
-                            <a href="#shop" class="gold-btn slide-up-delayed-more">${state.hero.buttonText}</a>
+                            <h1 class="hero-heading slide-up">${escapeHTML(state.hero.heading)}</h1>
+                            <p class="hero-subheading slide-up-delayed">${escapeHTML(state.hero.subheading)}</p>
+                            <a href="#shop" class="gold-btn slide-up-delayed-more">${escapeHTML(state.hero.buttonText)}</a>
                         </div>
                     </section>
                 `;
@@ -1792,11 +1769,11 @@
                         <h2 class="section-title" style="font-family: 'Poppins', sans-serif;"><span style="font-weight: 300;">Our</span> <span style="font-weight: 600;">Categories</span></h2>
                         <div class="collections-grid">
                             ${state.collections.map(item => `
-                                <div class="collection-card" onclick="filterProductsByCategory('${item.name}')">
+                                <div class="collection-card" data-category="${escapeHTML(item.name)}" onclick="filterProductsByCategory(this.dataset.category)">
                                     <div class="collection-image-wrap">
-                                        <img src="${item.img}" alt="${item.name}" class="collection-img" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                                        <img src="${HiyaraState.safeURL(item.img)}" alt="${escapeHTML(item.name)}" class="collection-img" onerror="this.onerror=null; this.src=window.fallbackImg;">
                                         <div class="collection-info">
-                                            <h3>${item.name}</h3>
+                                            <h3>${escapeHTML(item.name)}</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -1808,11 +1785,11 @@
 
             renderBestSellers() {
                 const cols = (state.config && state.config.productColumns) ? state.config.productColumns : 5;
-                let productsToRender = currentCategoryFilter === 'All' ? state.bestSellers : state.bestSellers.filter(p => p.category === currentCategoryFilter);
+                let productsToRender = currentCategoryFilter === 'All' ? state.bestSellers : state.bestSellers.filter(p => p.category.toLowerCase().replace(/s$/, '') === currentCategoryFilter.toLowerCase().replace(/s$/, ''));
 
                 let titleHTML = currentCategoryFilter === 'All'
                     ? `<span style="font-weight: 300;">Best</span> <span style="font-weight: 600;">Sellers</span>`
-                    : `<span style="font-weight: 300;">Collection:</span> <span style="font-weight: 600;">${currentCategoryFilter}</span>
+                    : `<span style="font-weight: 300;">Collection:</span> <span style="font-weight: 600;">${escapeHTML(currentCategoryFilter)}</span>
                        <button onclick="filterProductsByCategory('All')" style="margin-left: 15px; font-size: 0.8rem; background: none; border: 1px solid var(--accent-gold); color: var(--accent-gold); padding: 5px 10px; cursor: pointer; border-radius: 4px;">Clear Filter</button>`;
 
                 return `
@@ -1827,12 +1804,12 @@
                                                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                             </svg>
                                         </button>
-                                        <img src="${product.img}" alt="${product.name}" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                                        <img src="${HiyaraState.safeURL(product.img)}" alt="${escapeHTML(product.name)}" onerror="this.onerror=null; this.src=window.fallbackImg;">
                                     </div>
                                     <div class="product-info">
-                                        <p class="product-category">${product.category}</p>
-                                        <h3 class="product-name">${product.name}</h3>
-                                        <p class="product-price">${product.price}</p>
+                                        <p class="product-category">${escapeHTML(product.category)}</p>
+                                        <h3 class="product-name">${escapeHTML(product.name)}</h3>
+                                        <p class="product-price">${escapeHTML(product.price)}</p>
                                         ${product.stock > 0
                         ? `<button class="add-to-cart-simple" onclick="addToCart(event, ${product.id})" style="background: var(--text-primary); color: white; border: none; padding: 10px 15px; width: 100%; cursor: pointer; transition: 0.3s; margin-top: 10px;">Add to Cart</button>`
                         : `<button class="add-to-cart-simple" disabled style="background: #e0e0e0; color: #888; border: none; padding: 10px 15px; width: 100%; cursor: not-allowed; margin-top: 10px;">Out of Stock</button>`
@@ -1851,12 +1828,12 @@
                 <div class="about-grid">
                     <div class="about-text">
                         <span>Our Story</span>
-                        <h2>${state.about.title}</h2>
-                        <p class="brand-story">${state.about.text}</p>
+                        <h2>${escapeHTML(state.about.title)}</h2>
+                        <p class="brand-story">${escapeHTML(state.about.text)}</p>
                         <a href="#about" class="gold-btn">Learn More</a>
                     </div>
                     <div class="about-img">
-                        <img src="${state.about.img}" alt="Brand Story" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                        <img src="${HiyaraState.safeURL(state.about.img)}" alt="Brand Story" onerror="this.onerror=null; this.src=window.fallbackImg;">
                     </div>
                 </div>
                     </section>
@@ -1873,19 +1850,19 @@
                                 
                                 <div class="contact-info-item">
                                     <h4>Visit Us</h4>
-                                    <p>${state.contact.address}</p>
+                                    <p>${escapeHTML(state.contact.address)}</p>
                                 </div>
                                 <div class="contact-info-item">
                                     <h4>Email Us</h4>
-                                    <p><a href="mailto:${state.contact.email}" style="color: inherit; text-decoration: none;">${state.contact.email}</a></p>
+                                    <p><a href="mailto:${escapeHTML(state.contact.email)}" style="color: inherit; text-decoration: none;">${escapeHTML(state.contact.email)}</a></p>
                                 </div>
                                 <div class="contact-info-item">
                                     <h4>Call Us</h4>
-                                    <p>${state.contact.phone}</p>
+                                    <p>${escapeHTML(state.contact.phone)}</p>
                                 </div>
                             </div>
                             
-                            <form class="contact-form" onsubmit="event.preventDefault(); alert('Thank you for your message. We will be in touch shortly.');">
+                            <form class="contact-form" onsubmit="event.preventDefault(); alert('This contact form is not connected yet. Please use the listed contact details.');">
                                 <div class="form-group">
                                     <label>Name</label>
                                     <input type="text" class="form-control" placeholder="Your Name" required>
@@ -1912,8 +1889,8 @@
                         <div class="newsletter-content container">
                     <h2>Join the World of Hiyara</h2>
                     <p>Subscribe to receive updates on new collections and exclusive events.</p>
-                    <form class="newsletter-form">
-                        <input type="email" placeholder="Email Address" class="newsletter-input">
+                    <form class="newsletter-form" onsubmit="event.preventDefault(); alert('Newsletter subscriptions are not connected yet.');">
+                        <input type="email" placeholder="Email Address" class="newsletter-input" required>
                             <button type="submit" class="newsletter-btn">Subscribe</button>
                     </form>
                 </div>
@@ -1929,7 +1906,7 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 3rem;">
                         <div>
                             <h3 style="font-family: var(--font-logo); font-size: 2.5rem; color: var(--accent-gold); margin-bottom: 1.5rem;">
-                                ${state.header.logo}
+                                ${escapeHTML(state.header.logo)}
                             </h3>
                             <p style="color: #888; line-height: 1.6;">Crafting moments of brilliance with timeless jewelry that speaks to your soul.</p>
                         </div>
@@ -1994,11 +1971,11 @@
                         </div>
                         <div class="form-group">
                             <label>Password</label>
-                            <input type="password" class="form-control" required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+                            <input type="password" class="form-control" disabled placeholder="Accounts unavailable">
                         </div>
                         <button type="submit" class="gold-btn" style="width: 100%;">Sign In</button>
                         <p style="text-align: center; margin-top: 1rem; font-size: 0.85rem; color: #888;">
-                            Demo Use Only. Any password works.
+                            Customer accounts are not connected yet. Please browse as a guest.
                         </p>
                     </form>
 
@@ -2014,7 +1991,7 @@
                         </div>
                         <div class="form-group">
                             <label>Password</label>
-                            <input type="password" class="form-control" required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+                            <input type="password" class="form-control" disabled placeholder="Accounts unavailable">
                         </div>
                         <button type="submit" class="gold-btn" style="width: 100%;">Create Account</button>
                     </form>
@@ -2062,12 +2039,12 @@
                 return `
                     <div class="cart-item" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #f5f5f5; align-items: start;">
                         <div style="width: 80px; height: 80px; background: #f9f9f9; border-radius: 8px; overflow: hidden; flex-shrink: 0;">
-                            <img src="${item.img}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                            <img src="${HiyaraState.safeURL(item.img)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.src=window.fallbackImg;">
                         </div>
                         
                         <div style="flex: 1;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; gap: 10px;">
-                                <h4 style="font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.95rem; color: #333; margin: 0; line-height: 1.2;">${item.name}</h4>
+                                <h4 style="font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.95rem; color: #333; margin: 0; line-height: 1.2;">${escapeHTML(item.name)}</h4>
                                 <span style="font-weight: 600; color: #333; font-size: 0.95rem; flex-shrink: 0;">${formattedSubtotal}</span>
                             </div>
                             
@@ -2171,34 +2148,40 @@
                         <div class="auth-content" style="max-width: 500px;">
                             <span class="close-auth" onclick="closeCheckout()">&times;</span>
                             <h2 style="margin-bottom: 1.5rem; text-align: center; font-family: var(--font-serif);">Checkout</h2>
+                            <p style="margin-bottom:1rem;color:#666;">Preview checkout: this saves an order on this browser only. No payment is collected or order sent to the store.</p>
                             <form id="checkoutForm" onsubmit="handlePlaceOrder(event)">
                                 <div class="form-group">
                                     <label>Full Name</label>
-                                    <input type="text" class="form-control" required placeholder="Jane Doe">
+                                    <input type="text" id="checkoutName" class="form-control" required placeholder="Jane Doe">
                                 </div>
                                 <div class="form-group">
                                     <label>Shipping Address</label>
-                                    <textarea class="form-control" required placeholder="123 Luxury Lane..."></textarea>
+                                    <textarea id="checkoutAddress" class="form-control" required placeholder="123 Luxury Lane..."></textarea>
                                 </div>
                                 <div class="form-group">
                                     <label>Payment Method</label>
-                                    <select class="form-control">
-                                        <option>Credit Card</option>
-                                        <option>Cash on Delivery</option>
+                                    <select id="checkoutPayment" class="form-control">
+                                        <option disabled>Online payment unavailable</option>
+                                        <option selected>Cash on Delivery</option>
                                     </select>
                                 </div>
                                 <div style="background: #f9f9f9; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                         <span>Subtotal</span>
-                                        <span id="checkoutSubtotal">â‚¹0</span>
+                                        <span id="checkoutSubtotal">₹0</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                        <span>Shipping</span>
-                                        <span>Free</span>
+                                        <span>Estimated Tax (8%)</span><span id="checkoutTax">₹0</span>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+                                        <span>Discount</span><span id="checkoutDiscount">₹0</span>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+                                        <span>Shipping</span><span>Free</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 1.1rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #ddd;">
                                         <span>Total</span>
-                                        <span id="checkoutTotal">â‚¹0</span>
+                                        <span id="checkoutTotal">₹0</span>
                                     </div>
                                 </div>
                                 <button type="submit" class="gold-btn" style="width: 100%;">Place Order</button>
@@ -2212,7 +2195,7 @@
 
         window.addEventListener('storage', (e) => {
             if (e.key === 'hiyara_state_v1') {
-                state = JSON.parse(e.newValue);
+                state = readState();
                 initApp();
             }
         });
@@ -2221,7 +2204,7 @@
         window.addEventListener('focus', () => {
             const stored = localStorage.getItem('hiyara_state_v1');
             if (stored) {
-                const storedState = JSON.parse(stored);
+                const storedState = readState();
                 // Simple check if state changed (comparing length of stringified json might be faster but less accurate)
                 if (JSON.stringify(storedState) !== JSON.stringify(state)) {
                     state = storedState;
@@ -2232,16 +2215,17 @@
 
         window.openProduct = (id) => {
             const product = state.bestSellers.find(p => p.id === id);
+            if (!product) return;
             const modal = document.getElementById('productModal');
             const content = document.getElementById('modalContent');
             content.innerHTML = `
                 <div class="product-detail-grid">
                     <div class="product-gallery">
-                        <img src="${product.img}" alt="${product.name}" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                        <img src="${HiyaraState.safeURL(product.img)}" alt="${escapeHTML(product.name)}" onerror="this.onerror=null; this.src=window.fallbackImg;">
                     </div>
                     <div class="product-info-panel">
-                        <h1>${product.name}</h1>
-                        <p class="product-detail-price">${product.price}</p>
+                        <h1>${escapeHTML(product.name)}</h1>
+                        <p class="product-detail-price">${escapeHTML(product.price)}</p>
                         <div class="product-description">
                             Premium quality ${product.category.toLowerCase()} crafted from ethically sourced materials.
                         </div>
@@ -2249,14 +2233,14 @@
                             <div class="variant-group">
                                 <label>Size</label>
                                 <div class="variant-options">
-                                    <div class="variant-chip active">Standard</div>
-                                    <div class="variant-chip">Custom</div>
+                                    <div class="variant-chip active" onclick="selectVariant(this)">Standard</div>
+                                    <div class="variant-chip" onclick="selectVariant(this)">Custom</div>
                                 </div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 1rem;">
-                            <button class="btn-outline" style="flex: 1" onclick="addToCart(${product.id})">Add to Bag</button>
-                            <button class="gold-btn" style="flex: 1" onclick="buyNow(${product.id})">Buy Now</button>
+                            <button class="btn-outline" style="flex: 1" ${product.stock > 0 ? '' : 'disabled'} onclick="addToCart(${product.id})">${product.stock > 0 ? 'Add to Bag' : 'Out of Stock'}</button>
+                            <button class="gold-btn" style="flex: 1" ${product.stock > 0 ? '' : 'disabled'} onclick="buyNow(${product.id})">Buy Now</button>
                         </div>
                     </div>
                 </div>
@@ -2287,15 +2271,6 @@
             if (panel) panel.classList.toggle('active');
         };
 
-        window._addItemToState = (id) => {
-            if (!state.cart) state.cart = [];
-            const product = state.bestSellers.find(p => p.id === id);
-            // Check if already in cart? (Optional, currently allows duplicates which is fine for quantity)
-            state.cart.push(product);
-            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-            return product;
-        };
-
         window.showToast = (message) => {
             let toast = document.getElementById('toastNotification');
             if (!toast) {
@@ -2304,7 +2279,7 @@
                 toast.className = 'toast-notification';
                 document.body.appendChild(toast);
             }
-            toast.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> ${message}`;
+            toast.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> ${escapeHTML(message)}`;
             toast.classList.add('show');
 
             setTimeout(() => {
@@ -2327,7 +2302,7 @@
             const activeSizeChip = document.querySelector('.product-variants .variant-group:nth-child(1) .variant-chip.active');
             if (activeSizeChip) variant.size = activeSizeChip.innerText;
 
-            cartAPI.addItem(product, variant);
+            if (!cartAPI.addItem(product, variant)) return;
             closeProduct(); // close modal if open
             toggleCart(); // open cart drawer
         };
@@ -2354,10 +2329,10 @@
                 const activeSizeChip = document.querySelector('.product-variants .variant-group:nth-child(1) .variant-chip.active');
                 if (activeSizeChip) variant.size = activeSizeChip.innerText;
 
-                cartAPI.addItem(product, variant);
-            }
+                if (!cartAPI.addItem(product, variant)) return;
+            } else return;
             closeProduct();
-            toggleCart(); // Open cart immediately
+            proceedToCheckout();
         };
 
         window.removeFromCart = (index) => {
@@ -2405,26 +2380,14 @@
 
         window.proceedToCheckout = () => {
             const summary = cartAPI.getSummary();
-            const payload = {
-                cartItems: cartAPI.getCart(),
-                summary: {
-                    subtotal: summary.subtotal,
-                    tax: summary.tax,
-                    discount: summary.discount,
-                    total: summary.total,
-                    promoCodeApplied: summary.promoCode
-                },
-                timestamp: new Date().toISOString(),
-                session: 'hiyara-session-mock-id'
-            };
-            console.log('PROCEED TO CHECKOUT PAYLOAD:', payload);
-            alert('Checkout state payload logged to the console! Opening order form...');
-
+            if (!cartAPI.getCart().length) { alert('Your bag is empty!'); return; }
             // Populate the checkout modal fields
             document.getElementById('checkoutSubtotal').innerText = '₹' + summary.subtotal.toLocaleString();
             document.getElementById('checkoutTotal').innerText = '₹' + summary.total.toLocaleString();
+            document.getElementById('checkoutTax').innerText = '₹' + summary.tax.toLocaleString();
+            document.getElementById('checkoutDiscount').innerText = '-₹' + summary.discount.toLocaleString();
 
-            toggleCart();
+            document.getElementById('cartPanel').classList.remove('active');
             document.getElementById('checkoutModal').classList.add('active');
         };
 
@@ -2457,31 +2420,9 @@
             }
         };
 
-        window.handleLogin = (e) => {
+        window.handleLogin = window.handleSignup = (e) => {
             e.preventDefault();
-            // Simulate login
-            const email = e.target.querySelector('input[type="email"]').value;
-            const name = email.split('@')[0]; // Simple mock
-
-            state.currentUser = { name: name, email: email };
-            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-
-            closeAuthModal();
-            initApp();
-            // alert('Welcome back, ' + name + '!');
-        };
-
-        window.handleSignup = (e) => {
-            e.preventDefault();
-            const name = document.getElementById('signupName').value;
-            const email = document.getElementById('signupEmail').value;
-
-            state.currentUser = { name: name, email: email };
-            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-
-            closeAuthModal();
-            initApp();
-            alert('Account created successfully!');
+            alert('Customer accounts are not connected yet. You can browse and preview checkout as a guest.');
         };
 
         window.handleLogout = () => {
@@ -2515,28 +2456,7 @@
 
 
         // CHECKOUT LOGIC
-        window.startCheckout = () => {
-            if (!state.cart || state.cart.length === 0) {
-                alert('Your bag is empty!');
-                return;
-            }
-
-            // Calculate Total
-            const total = state.cart.reduce((sum, item) => {
-                const price = parseInt(item.price.replace(/[^0-9]/g, ''));
-                return sum + price;
-            }, 0);
-
-            const formattedTotal = 'â‚¹' + total.toLocaleString();
-
-            // Populate Modal
-            document.getElementById('checkoutSubtotal').innerText = formattedTotal;
-            document.getElementById('checkoutTotal').innerText = formattedTotal;
-
-            // Close Cart & Open Modal
-            toggleCart();
-            document.getElementById('checkoutModal').classList.add('active');
-        };
+        window.startCheckout = () => proceedToCheckout();
 
         window.closeCheckout = () => {
             document.getElementById('checkoutModal').classList.remove('active');
@@ -2545,22 +2465,46 @@
         window.handlePlaceOrder = (e) => {
             e.preventDefault();
 
-            // Simulate processing
-            const btn = e.target.querySelector('button');
-            const originalText = btn.innerText;
-            btn.innerText = 'Processing...';
-            btn.disabled = true;
+            const name = document.getElementById('checkoutName').value;
+            const address = document.getElementById('checkoutAddress').value;
+            const payment = document.getElementById('checkoutPayment').value;
+            if (!state.cart.length) { alert('Your bag is empty!'); return; }
+            if (!name.trim() || address.trim().length < 5) { alert('Enter a name and complete shipping address.'); return; }
+            for (const item of state.cart) {
+                const product = state.bestSellers.find(p => p.id === item.id);
+                const count = state.cart.filter(i => i.id === item.id).reduce((sum, i) => sum + i.quantity, 0);
+                if (!product || count > product.stock) { alert('Some items are no longer available. Please update your bag.'); return; }
+                item.price = product.price;
+            }
+            const cartItems = JSON.parse(JSON.stringify(state.cart));
+            const summary = cartAPI.getSummary();
 
-            setTimeout(() => {
-                // Success
-                state.cart = [];
-                localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+            // Create Order
+            const newOrder = {
+                orderId: 'HY-' + crypto.randomUUID(),
+                customer: name,
+                email: state.currentUser ? state.currentUser.email : 'guest@example.com',
+                address: address,
+                paymentMethod: payment,
+                items: cartItems,
+                summary: summary,
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                status: 'Pending',
+                paymentStatus: 'Unpaid'
+            };
 
-                alert('Thank you! Your order has been placed successfully. We will contact you shortly.');
-
-                closeCheckout();
-                initApp();
-            }, 1500);
+            const previous = JSON.parse(JSON.stringify(state));
+            if (!state.orders) state.orders = [];
+            state.orders.push(newOrder);
+            cartItems.forEach(item => { state.bestSellers.find(p => p.id === item.id).stock -= item.quantity; });
+            state.cart = [];
+            state.promoCode = null;
+            try { saveState(); }
+            catch { state = previous; alert('Could not save this preview order. Your bag has been kept.'); return; }
+            closeCheckout();
+            initApp();
+            alert('Preview order saved on this browser. No payment was taken and no order was sent to the store.');
         };
 
         window.performSearch = () => {
@@ -2583,10 +2527,10 @@
                 resultsContainer.classList.add('active');
                 resultsContainer.innerHTML = results.map(product => `
             <div class="search-result-item" onclick="openProduct(${product.id})">
-                <img src="${product.img}" alt="${product.name}" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                <img src="${HiyaraState.safeURL(product.img)}" alt="${escapeHTML(product.name)}" onerror="this.onerror=null; this.src=window.fallbackImg;">
                     <div class="search-result-info">
-                        <h4>${product.name}</h4>
-                        <p>${product.price}</p>
+                        <h4>${escapeHTML(product.name)}</h4>
+                        <p>${escapeHTML(product.price)}</p>
                     </div>
                 </div>
         `).join('');
@@ -2714,7 +2658,7 @@
                     <div class="footer-info">
                         <div class="brand-logo footer-logo" style="display: block; margin-bottom: 1.5rem;">
                             ${state.header.logoImg ? 
-                                `<img src="${state.header.logoImg}" alt="${state.header.logo}" style="height: 100px; filter: brightness(0) invert(1);">` : 
+                                `<img src="${HiyaraState.safeURL(state.header.logoImg)}" alt="${escapeHTML(state.header.logo)}" style="height: 100px; filter: brightness(0) invert(1);">` : 
                                 `<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
                                     <span style="font-family: var(--font-logo); font-size: 3.5rem; line-height: 1.1; color: var(--accent-gold); display: block;">Hiyara</span>
                                     <span style="font-family: 'Outfit', sans-serif; font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent-gold); opacity: 0.95; display: block; margin-left: 2px;">Modesty in Grace</span>
@@ -2743,6 +2687,7 @@
                         <ul>
                             <li><a href="#">Contact</a></li>
                             <li><a href="#">Shipping</a></li>
+                            <li><a href="admin.html" target="_blank">Admin Panel &nearr;</a></li>
                         </ul>
                     </div>
                     <div class="footer-links">

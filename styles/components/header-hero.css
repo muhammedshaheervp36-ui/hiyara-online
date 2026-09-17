@@ -1,0 +1,240 @@
+/* Header Styles */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    background: rgba(245, 241, 235, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+    padding: var(--space-sm) 0;
+    transition: var(--transition-smooth);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.brand-logo {
+    font-size: 2.5rem;
+    color: var(--text-primary);
+    position: relative;
+    display: inline-block;
+}
+
+.brand-logo-img {
+    height: 75px;
+    width: auto;
+    max-width: 100%;
+    mix-blend-mode: multiply;
+}
+
+/* Specific Logo Flourishes (Simulated with pseudo-elements for now) */
+.brand-logo::first-letter {
+    color: var(--accent-gold);
+}
+
+.main-nav ul {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.main-nav a {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    position: relative;
+}
+
+.main-nav a::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--accent-gold);
+    transition: var(--transition-smooth);
+}
+
+.main-nav a:hover::after {
+    width: 100%;
+}
+
+.header-icons {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    transition: var(--transition-smooth);
+}
+
+.icon-btn:hover {
+    color: var(--accent-gold);
+    transform: translateY(-2px);
+}
+
+/* Hero Section Styles */
+.hero-section {
+    position: relative;
+    height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #e0d9cf;
+    /* Fallback */
+    overflow: hidden;
+}
+
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+    color: var(--text-primary);
+}
+
+.hero-heading {
+    font-size: 4.5rem;
+    margin-bottom: var(--space-sm);
+    max-width: 800px;
+    line-height: 1.1;
+}
+
+.hero-subheading {
+    font-size: 1.2rem;
+    margin-bottom: var(--space-md);
+    font-family: var(--font-sans);
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+}
+
+.gold-btn {
+    display: inline-block;
+    padding: 1rem 3rem;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border: 1px solid var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.8rem;
+    transition: var(--transition-smooth);
+}
+
+.gold-btn:hover {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+    color: var(--white);
+    transform: scale(1.05);
+}
+
+/* Animations */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-up {
+    animation: slideUp 1s forwards;
+}
+
+.slide-up-delayed {
+    animation: slideUp 1s 0.3s forwards;
+    opacity: 0;
+}
+
+.slide-up-delayed-more {
+    animation: slideUp 1s 0.6s forwards;
+    opacity: 0;
+}
+
+/* Universal Navigation Hamburger (3 Lines Menu) */
+.mobile-menu-toggle {
+    display: block;
+    /* Show by default on all screens */
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    color: var(--text-primary);
+}
+
+/* Mobile Nav Dropdown styles (Now applied universally) */
+.header-content {
+    position: relative;
+}
+
+.main-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: -5%;
+    width: 110%;
+    background: var(--bg-primary);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    padding: var(--space-md);
+    z-index: 999;
+}
+
+.main-nav.active {
+    display: block;
+}
+
+.main-nav ul {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+/* Header & Hero Mobile Responsiveness (Other elements) */
+@media (max-width: 768px) {
+    .brand-logo {
+        font-size: 2rem;
+    }
+
+    .brand-logo-img {
+        height: 40px;
+        /* appropriately sized for mobile header */
+        max-width: 150px;
+        /* prevent it from taking up entire header if wide */
+        object-fit: contain;
+    }
+
+    .logo-container {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    .hero-section {
+        height: 70vh;
+    }
+
+    .hero-heading {
+        font-size: 2.5rem;
+    }
+
+    .hero-subheading {
+        font-size: 1rem;
+    }
+}

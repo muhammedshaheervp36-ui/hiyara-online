@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
+    <script src="scripts/state-utils.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hiyara Admin Dashboard</title>
     <!-- Fonts -->
@@ -432,6 +433,29 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Dynamic Orders split-layout */
+        .orders-split-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 1.8fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .orders-list-panel {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
+        }
+
+        @media (max-width: 1024px) {
+            .orders-split-layout {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -461,6 +485,8 @@
             <!-- Product Specific -->
             <div class="form-row" id="field-price-category-group">
                 <div class="form-group">
+                    <label>Stock quantity</label>
+                    <input type="number" min="0" step="1" class="form-control" id="edit-stock" value="0">
                     <label>Price</label>
                     <input type="text" class="form-control" id="edit-price">
                 </div>
@@ -501,14 +527,70 @@
             </div>
         </div>
     </div>
+
+    <!-- CUSTOMER MODAL -->
+    <div class="modal" id="customerModal">
+        <div class="modal-content" style="max-width: 550px;">
+            <span class="close-modal" onclick="closeCustomerModal()">&times;</span>
+            <h2 id="customer-modal-title" style="font-family: 'Sirenik', serif; font-size: 1.5rem; margin-bottom: 1.25rem; color: #111;">Add Customer</h2>
+            <input type="hidden" id="cust-edit-id">
+            
+            <div id="customer-form-errors" style="display: none; background-color: #fee2e2; border: 1px solid #f87171; color: #991b1b; padding: 10px 14px; border-radius: 6px; margin-bottom: 15px; font-size: 0.875rem;"></div>
+
+            <div class="form-group">
+                <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Full Name *</label>
+                <input type="text" class="form-control" id="cust-name" placeholder="e.g. Priya Sharma">
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Email Address *</label>
+                    <input type="email" class="form-control" id="cust-email" placeholder="e.g. priya@example.com">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Phone Number *</label>
+                    <input type="text" class="form-control" id="cust-phone" placeholder="e.g. +91 98765 43210">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Shipping / Billing Address *</label>
+                <textarea class="form-control" rows="3" id="cust-address" placeholder="Full street address, city, state, pincode"></textarea>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Status *</label>
+                    <select class="form-control" id="cust-status">
+                        <option value="Active">Active</option>
+                        <option value="VIP">VIP</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Total Spent (&#8377;)</label>
+                    <input type="number" class="form-control" id="cust-spent" placeholder="0" min="0">
+                </div>
+            </div>
+
+            <div class="form-row" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="btn" style="background: #eee; color: #333;" onclick="closeCustomerModal()">Cancel</button>
+                <button class="btn" style="background: var(--accent-gold); color: #fff;" onclick="saveCustomerForm(event)" id="btn-save-customer">Save Customer</button>
+            </div>
+        </div>
+    </div>
+
     <div class="sidebar">
         <div class="brand">Hiyara Admin</div>
         <div class="nav-item active" onclick="switchView('dashboard')">Dashboard</div>
         <div class="nav-item" onclick="switchView('products')">Products</div>
         <div class="nav-item" onclick="switchView('collections')">Collections</div>
         <div class="nav-item" onclick="switchView('orders')">Orders</div>
+        <div class="nav-item" onclick="switchView('customers')">Customers</div>
         <div class="nav-item" onclick="switchView('settings')">Settings</div>
         <div class="nav-item" onclick="window.open('index.html', '_blank')">View Store &nearr;</div>
+        <div class="nav-item" style="margin-top: 30px; color: #f87171;" onclick="handleAdminLogout()">🔒 Sign Out</div>
     </div>
 
     <div class="main-content">
@@ -520,11 +602,11 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Total Sales</div>
-                    <div class="stat-value">$12,450</div>
+                    <div class="stat-value" id="stats-total-sales">&#8377;0</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Orders</div>
-                    <div class="stat-value">45</div>
+                    <div class="stat-value" id="stats-orders-count">0</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Products</div>
@@ -591,114 +673,35 @@
 
         <!-- ORDERS VIEW -->
         <div id="orders" class="view-section">
-            <div class="order-details-container" style="font-family: 'Outfit', sans-serif;">
-
+            <div style="max-width: 1200px; margin: 0 auto; padding: 20px; font-family: 'Outfit', sans-serif;">
                 <h1
                     style="font-family: 'Sirenik', 'Sirenik Regular', serif; color: #C5A059; font-size: 3.5rem; margin-bottom: 2rem; letter-spacing: 0.05em;">
-                    Hiyara</h1>
-
-                <div id="order-status-banner"
-                    style="background: #e8f0fe; color: #1967d2; padding: 12px 24px; border-radius: 50px; margin-bottom: 3rem; display: inline-block; font-weight: 500; font-size: 0.95rem; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
-                    âœ¨ New Order Received
-                </div>
-
-                <div class="order-details-card" style="transition: transform 0.3s ease;">
-
-                    <!-- Invoice Actions -->
-                    <div class="order-actions">
-                        <button onclick="printInvoice()"
-                            style="background: #f1f3f4; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #333; display: flex; align-items: center; gap: 5px; transition: 0.2s;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path
-                                    d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-                                <path d="M6 14h12v8H6z" />
-                            </svg>
-                            Print
-                        </button>
-                        <button onclick="downloadPDF()"
-                            style="background: #f1f3f4; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #333; display: flex; align-items: center; gap: 5px; transition: 0.2s;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                            </svg>
-                            PDF
-                        </button>
+                    Orders</h1>
+                
+                <div class="orders-split-layout">
+                    <!-- Left Panel: Orders List Table -->
+                    <div class="orders-list-panel">
+                        <table class="data-table" style="font-size: 0.9rem;">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-list-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
                     </div>
-
-                    <div class="order-info-header">
-                        <div>
-                            <div
-                                style="color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px;">
-                                Order Number</div>
-                            <h2 style="font-weight: 600; font-size: 1.8rem; margin: 0; color: #333;">#HY-8291</h2>
-                            <div style="margin-top: 10px;">
-                                <span
-                                    style="background: #e6f4ea; color: #137333; padding: 6px 16px; border-radius: 50px; font-size: 0.8rem; font-weight: 600; display: inline-block;">PAID</span>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div
-                                style="color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px;">
-                                Total Amount</div>
-                            <div style="font-size: 2.2rem; font-weight: 600; color: #111;">â‚¹95,000</div>
-                        </div>
+                    
+                    <!-- Right Panel: Order Details -->
+                    <div id="active-order-details-container">
+                        <!-- Populated dynamically via renderActiveOrder(orderId) -->
                     </div>
-
-                    <div class="order-grid-2col">
-                        <!-- Product Image -->
-                        <div
-                            style="background: #fafafa; border-radius: 16px; display: flex; align-items: center; justify-content: center; height: 220px; border: 1px solid #f5f5f5;">
-                            <!-- Placeholder image logic -->
-                            <img src="https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=400"
-                                alt="Jewelry"
-                                style="max-height: 80%; max-width: 80%; object-fit: contain; mix-blend-mode: multiply;">
-                        </div>
-
-                        <!-- Details -->
-                        <div class="order-customer-details">
-                            <div>
-                                <label
-                                    style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Customer</label>
-                                <div style="font-weight: 500; font-size: 1.1rem; color: #333;">Priya Sharma</div>
-                                <div style="color: #666; font-size: 0.9rem; margin-top: 4px;">priya.sharma@example.com
-                                </div>
-                            </div>
-                            <div>
-                                <label
-                                    style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Order
-                                    Date</label>
-                                <div style="font-weight: 500; font-size: 1.1rem; color: #333;">Oct 24, 2026</div>
-                                <div style="color: #666; font-size: 0.9rem; margin-top: 4px;">10:42 AM</div>
-                            </div>
-                            <div style="grid-column: span 2;">
-                                <label
-                                    style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Delivery
-                                    Address</label>
-                                <div style="font-weight: 500; line-height: 1.6; color: #333; font-size: 1.05rem;">
-                                    A-45, Regency Park, DLF Phase IV,<br>
-                                    Gurgaon, Haryana, 122002
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="order-bottom-actions">
-                        <button id="btn-accept-order" onclick="acceptOrder()"
-                            style="background: #1a73e8; color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);">Accept
-                            Order</button>
-                        <button
-                            style="background: white; color: #3c4043; border: 1px solid #dadce0; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem;">Process
-                            Order</button>
-                        <button
-                            style="background: white; color: #3c4043; border: 1px solid #dadce0; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem;">Print
-                            Invoice</button>
-                        <button
-                            style="background: white; color: #5f6368; border: 1px solid #dadce0; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem;">Edit
-                            Order</button>
-                    </div>
-
                 </div>
             </div>
         </div>
@@ -732,9 +735,20 @@
                     <label>Subheading</label>
                     <textarea class="form-control" rows="3" id="setting-hero-subheading"></textarea>
                 </div>
+            </div>
+            <div class="card">
+                <h3>About Us / Our Story Section</h3>
                 <div class="form-group">
-                    <label>Button Text</label>
-                    <input type="text" class="form-control" id="setting-hero-btn">
+                    <label>Story Title</label>
+                    <input type="text" class="form-control" id="setting-about-title">
+                </div>
+                <div class="form-group">
+                    <label>Story Text</label>
+                    <textarea class="form-control" rows="4" id="setting-about-text"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Story Image (URL or path)</label>
+                    <input type="text" class="form-control" id="setting-about-img" placeholder="assets/story-bg.jpg">
                 </div>
             </div>
             <div class="card">
@@ -799,9 +813,89 @@
                 </div>
             </div>
         </div>
+
+        <!-- CUSTOMERS VIEW -->
+        <div id="customers" class="view-section">
+            <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1 class="page-title">Customer Management</h1>
+                    <p style="color: #666; font-size: 0.9rem; margin-top: 4px;">Securely manage customer records, status, addresses, and purchase history.</p>
+                </div>
+                <button class="btn" style="background: var(--accent-gold); color: #fff;" onclick="openCustomerModal()">+ Add Customer</button>
+            </div>
+
+            <!-- Search & Filters -->
+            <div class="card" style="margin-bottom: 20px; padding: 15px 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: #fff; border-radius: 8px; border: 1px solid #eee;">
+                <div style="flex: 1; min-width: 250px;">
+                    <input type="text" class="form-control" id="customer-search" placeholder="🔍 Search customers by name, email, or phone..." oninput="renderCustomers()">
+                </div>
+                <div style="width: 180px;">
+                    <select class="form-control" id="customer-status-filter" onchange="renderCustomers()">
+                        <option value="ALL">All Statuses</option>
+                        <option value="Active">Active</option>
+                        <option value="VIP">VIP</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card data-table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th>Contact</th>
+                            <th>Address</th>
+                            <th>Status</th>
+                            <th>Orders</th>
+                            <th>Total Spent</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customer-table-body">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
+        const escapeHTML = HiyaraState.escapeHTML;
+        // Authentication Guard Check
+        async function checkAdminAuthentication() {
+            try {
+                const res = await fetch('/api/admin/me');
+                if (!res.ok) {
+                    window.location.href = 'admin-login.html';
+                    return false;
+                }
+                const data = await res.json();
+                if (!data.success) {
+                    window.location.href = 'admin-login.html';
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                // If backend unreachable in static file mode, allow offline state
+                return true;
+            }
+        }
+
+        async function handleAdminLogout() {
+            if (!confirm('Are you sure you want to sign out of the Hiyara Admin Portal?')) return;
+            try {
+                await fetch('/api/admin/logout', { method: 'POST' });
+            } catch (e) {}
+            window.location.href = 'admin-login.html';
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            checkAdminAuthentication();
+        });
+
         // State Management
         let state = {};
         const MAX_FILE_SIZE_MB = 2; // 2 MB Limit
@@ -885,11 +979,13 @@
         });
         if (!defaultState.about.img || defaultState.about.img === 'WhatsApp Image 2026-02-18 at 7.54.06 PM.jpeg' || defaultState.about.img.startsWith('data:image/svg+xml')) defaultState.about.img = createPlaceholder(800, 600, 'Our Story');
 
+        window.activeOrderId = 'HY-8291';
+
         // Load State
         function loadState() {
             const stored = localStorage.getItem('hiyara_state_v1');
             if (stored) {
-                state = JSON.parse(stored);
+                state = HiyaraState.read(defaultState);
                 // Migration logic for contact
                 if (!state.contact) {
                     state.contact = defaultState.contact;
@@ -898,6 +994,7 @@
                 if (state.bestSellers && state.bestSellers.length > 0) {
                     let needsFix = false;
                     state.bestSellers.forEach(p => {
+                        p.price = String(p.price ?? '₹0');
                         const symbolCount = (p.price.match(/\u20B9/g) || []).length;
                         if (p.price.match(/[$\u00E2\u201A\u00B9?\uFFFD]/) || symbolCount !== 1 || !p.price.trim().startsWith('\u20B9')) {
                             needsFix = true;
@@ -922,16 +1019,23 @@
                     }
                 }
             } else {
-                state = defaultState;
+                state = structuredClone(defaultState);
                 localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
             }
+
+            if (!Array.isArray(state.orders)) state.orders = [];
+            if (!Array.isArray(state.customers)) state.customers = [];
+
+            window.activeOrderId = state.orders[0]?.orderId || null;
             renderdashboard();
         }
 
-        function saveState() {
+        function saveState(silent = false) {
             try {
                 localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
-                alert('Settings saved!');
+                if (!silent) {
+                    alert('Settings saved!');
+                }
             } catch (e) {
                 if (e.name === 'QuotaExceededError') {
                     alert('Storage Limit Exceeded! The image you uploaded is likely too large. Please use a smaller image or an external URL.');
@@ -946,17 +1050,248 @@
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
-            document.getElementById(viewId).classList.add('active');
+            const targetView = document.getElementById(viewId);
+            if (targetView) targetView.classList.add('active');
 
-            // Highlight nav
-            // Highlight nav
             const navs = document.querySelectorAll('.nav-item');
             if (viewId === 'dashboard') navs[0].classList.add('active');
             if (viewId === 'products') navs[1].classList.add('active');
             if (viewId === 'collections') navs[2].classList.add('active');
             if (viewId === 'orders') navs[3].classList.add('active');
-            if (viewId === 'settings') navs[4].classList.add('active');
+            if (viewId === 'customers') {
+                if (navs[4]) navs[4].classList.add('active');
+                fetchCustomersFromAPI();
+            }
+            if (viewId === 'settings') {
+                if (navs[5]) navs[5].classList.add('active');
+            }
         };
+
+        // --- CUSTOMER MANAGEMENT MODULE ---
+        const ADMIN_API_BASE = '/api/admin';
+        const AUTH_HEADERS = {
+            'Content-Type': 'application/json'
+        };
+
+        async function fetchCustomersFromAPI() {
+            try {
+                const res = await fetch(`${ADMIN_API_BASE}/customers`, {
+                    method: 'GET',
+                    headers: AUTH_HEADERS
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.customers)) {
+                        state.customers = data.customers;
+                        saveState(true);
+                    }
+                }
+            } catch (err) {
+                console.warn('Backend API server offline or unreachable. Using local state.', err);
+            }
+            renderCustomers();
+        }
+
+        function renderCustomers() {
+            const tbody = document.getElementById('customer-table-body');
+            if (!tbody) return;
+
+            const searchQuery = (document.getElementById('customer-search')?.value || '').toLowerCase().trim();
+            const statusFilter = document.getElementById('customer-status-filter')?.value || 'ALL';
+
+            const customers = state.customers || [];
+            const filtered = customers.filter(c => {
+                const matchesSearch = !searchQuery ||
+                    c.name.toLowerCase().includes(searchQuery) ||
+                    c.email.toLowerCase().includes(searchQuery) ||
+                    c.phone.toLowerCase().includes(searchQuery) ||
+                    c.id.toLowerCase().includes(searchQuery);
+
+                const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 30px; color: #888;">
+                            No customers found. Click <strong>+ Add Customer</strong> to create one.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const getStatusBadge = (status) => {
+                const styles = {
+                    'VIP': 'background: #fef3c7; color: #92400e; border: 1px solid #f59e0b;',
+                    'Active': 'background: #dcfce7; color: #166534; border: 1px solid #22c55e;',
+                    'Inactive': 'background: #f3f4f6; color: #4b5563; border: 1px solid #9ca3af;',
+                    'Pending': 'background: #ffedd5; color: #9a3412; border: 1px solid #f97316;'
+                };
+                const style = styles[status] || styles['Active'];
+                return `<span style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; ${style}">${status}</span>`;
+            };
+
+            tbody.innerHTML = filtered.map(c => `
+                <tr>
+                    <td style="font-weight: 600; color: var(--accent-gold); font-size: 0.85rem;">${c.id}</td>
+                    <td style="font-weight: 500; color: #111;">${escapeHTML(c.name)}</td>
+                    <td>
+                        <div style="font-size: 0.875rem; color: #333;">${escapeHTML(c.email)}</div>
+                        <div style="font-size: 0.8rem; color: #888;">${escapeHTML(c.phone)}</div>
+                    </td>
+                    <td style="font-size: 0.85rem; color: #555; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(c.address)}">
+                        ${escapeHTML(c.address)}
+                    </td>
+                    <td>${getStatusBadge(c.status)}</td>
+                    <td style="font-weight: 600; text-align: center;">${c.totalOrders || 0}</td>
+                    <td style="font-weight: 600; color: #111;">&#8377;${(c.totalSpent || 0).toLocaleString('en-IN')}</td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: #f3f4f6; color: #333;" onclick="openCustomerModal('${c.id}')">Edit</button>
+                            <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem;" onclick="deleteCustomerRecord('${c.id}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openCustomerModal(id = null) {
+            const modal = document.getElementById('customerModal');
+            const title = document.getElementById('customer-modal-title');
+            const errorDiv = document.getElementById('customer-form-errors');
+            errorDiv.style.display = 'none';
+
+            if (id) {
+                const cust = (state.customers || []).find(c => c.id === id);
+                if (!cust) return;
+                title.textContent = `Edit Customer: ${cust.id}`;
+                document.getElementById('cust-edit-id').value = cust.id;
+                document.getElementById('cust-name').value = cust.name || '';
+                document.getElementById('cust-email').value = cust.email || '';
+                document.getElementById('cust-phone').value = cust.phone || '';
+                document.getElementById('cust-address').value = cust.address || '';
+                document.getElementById('cust-status').value = cust.status || 'Active';
+                document.getElementById('cust-spent').value = cust.totalSpent || 0;
+            } else {
+                title.textContent = 'Add New Customer';
+                document.getElementById('cust-edit-id').value = '';
+                document.getElementById('cust-name').value = '';
+                document.getElementById('cust-email').value = '';
+                document.getElementById('cust-phone').value = '';
+                document.getElementById('cust-address').value = '';
+                document.getElementById('cust-status').value = 'Active';
+                document.getElementById('cust-spent').value = '0';
+            }
+            modal.classList.add('active');
+        }
+
+        function closeCustomerModal() {
+            document.getElementById('customerModal').classList.remove('active');
+        }
+
+        async function saveCustomerForm(e) {
+            if (e) e.preventDefault();
+            const btn = document.getElementById('btn-save-customer');
+            const errorDiv = document.getElementById('customer-form-errors');
+            errorDiv.style.display = 'none';
+
+            const editId = document.getElementById('cust-edit-id').value.trim();
+            const payload = {
+                name: document.getElementById('cust-name').value.trim(),
+                email: document.getElementById('cust-email').value.trim(),
+                phone: document.getElementById('cust-phone').value.trim(),
+                address: document.getElementById('cust-address').value.trim(),
+                status: document.getElementById('cust-status').value,
+                totalSpent: parseFloat(document.getElementById('cust-spent').value) || 0
+            };
+
+            // Client-side quick validation feedback
+            const clientErrors = [];
+            if (!payload.name || payload.name.length < 2) clientErrors.push('Full Name is required (at least 2 characters).');
+            if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) clientErrors.push('Valid email address required.');
+            if (!payload.phone || payload.phone.length < 7) clientErrors.push('Valid phone number required.');
+            if (!payload.address || payload.address.length < 5) clientErrors.push('Address is required (at least 5 characters).');
+
+            if (clientErrors.length > 0) {
+                errorDiv.innerHTML = clientErrors.map(err => `<div>• ${err}</div>`).join('');
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const url = editId ? `${ADMIN_API_BASE}/customers/${encodeURIComponent(editId)}` : `${ADMIN_API_BASE}/customers`;
+                const method = editId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: AUTH_HEADERS,
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    let msg = data.error || 'Failed to save customer.';
+                    if (data.details && Array.isArray(data.details)) {
+                        msg = data.details.map(d => d.message).join('\n• ');
+                    }
+                    errorDiv.textContent = '• ' + msg.replace(/<br>/g, '\n');
+                    errorDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Save Customer';
+                    return;
+                }
+
+                // API Save Succeeded!
+                const savedCust = data.customer;
+
+                if (!state.customers) state.customers = [];
+                if (editId) {
+                    const idx = state.customers.findIndex(c => c.id === editId);
+                    if (idx !== -1) state.customers[idx] = savedCust;
+                } else {
+                    state.customers.push(savedCust);
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Could not save the customer. Check the server connection and try again.';
+                errorDiv.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Save Customer';
+                return;
+            }
+
+            saveState(true);
+            closeCustomerModal();
+            renderCustomers();
+
+            btn.disabled = false;
+            btn.textContent = 'Save Customer';
+            alert(editId ? 'Customer updated successfully!' : 'New customer created successfully!');
+        }
+
+        async function deleteCustomerRecord(id) {
+            if (!confirm(`Are you sure you want to delete customer '${id}'?`)) return;
+
+            try {
+                const response = await fetch(`${ADMIN_API_BASE}/customers/${encodeURIComponent(id)}`, {
+                    method: 'DELETE',
+                    headers: AUTH_HEADERS
+                });
+                if (!response.ok) throw new Error((await response.json()).error || 'Delete failed.');
+            } catch (e) {
+                alert('Customer was not deleted: ' + e.message);
+                return;
+            }
+
+            state.customers = (state.customers || []).filter(c => c.id !== id);
+            saveState(true);
+            renderCustomers();
+        }
 
         // Render Functions
         function renderdashboard() {
@@ -968,13 +1303,13 @@
             if (state.bestSellers) {
                 tbody.innerHTML = state.bestSellers.map(p => `
                     <tr>
-                        <td><img src="${p.img}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
+                        <td><img src="${HiyaraState.safeURL(p.img)}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
                         <td>
-                            <div style="font-weight: 600;">${p.name}</div>
+                            <div style="font-weight: 600;">${escapeHTML(p.name)}</div>
                             <div style="font-size: 0.8rem; color: #888;">ID: ${p.id}</div>
                         </td>
-                        <td>${p.category}</td>
-                        <td>${p.price}</td>
+                        <td>${escapeHTML(p.category)}</td>
+                        <td>${escapeHTML(p.price)}</td>
                         <td>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="editItem('product', ${p.id})">Edit</button>
                         </td>
@@ -987,9 +1322,9 @@
             if (state.collections) {
                 cbody.innerHTML = state.collections.map((c, index) => `
                     <tr>
-                        <td><img src="${c.img}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
-                        <td><div style="font-weight: 600;">${c.name}</div></td>
-                        <td>${c.label}</td>
+                        <td><img src="${HiyaraState.safeURL(c.img)}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
+                        <td><div style="font-weight: 600;">${escapeHTML(c.name)}</div></td>
+                        <td>${escapeHTML(c.label)}</td>
                         <td>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="editItem('collection', ${index})">Edit</button>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; color: red; border-color: red;" onclick="deleteItem('collection', ${index})">Delete</button>
@@ -997,6 +1332,10 @@
                     </tr>
             `).join('');
             }
+
+            // Render dynamic orders & active order details
+            renderOrders();
+            renderActiveOrder(window.activeOrderId);
 
             // Settings Form
             if (state.header) {
@@ -1006,6 +1345,11 @@
                 document.getElementById('setting-hero-heading').value = state.hero.heading;
                 document.getElementById('setting-hero-subheading').value = state.hero.subheading;
                 document.getElementById('setting-hero-btn').value = state.hero.buttonText;
+            }
+            if (state.about) {
+                document.getElementById('setting-about-title').value = state.about.title || '';
+                document.getElementById('setting-about-text').value = state.about.text || '';
+                document.getElementById('setting-about-img').value = state.about.img || '';
             }
             if (state.config && state.config.image) {
                 document.getElementById('setting-img-width').value = state.config.image.maxWidth || 800;
@@ -1027,12 +1371,230 @@
             }
         }
 
+        window.selectOrder = (orderId) => {
+            window.activeOrderId = orderId;
+            renderOrders();
+            renderActiveOrder(orderId);
+        };
+
+        function renderOrders() {
+            const totalSalesEl = document.getElementById('stats-total-sales');
+            const ordersCountEl = document.getElementById('stats-orders-count');
+            
+            let totalSales = 0;
+            let orderCount = 0;
+            
+            if (state.orders) {
+                orderCount = state.orders.length;
+                state.orders.forEach(o => {
+                    if (o.paymentStatus === 'Paid' || o.status === 'PAID') {
+                        const amt = o.summary ? o.summary.total : 0;
+                        totalSales += amt;
+                    }
+                });
+            }
+
+            if (totalSalesEl) totalSalesEl.innerHTML = '&#8377;' + totalSales.toLocaleString();
+            if (ordersCountEl) ordersCountEl.textContent = orderCount;
+
+            const tbody = document.getElementById('orders-list-body');
+            if (tbody && state.orders) {
+                tbody.innerHTML = state.orders.map(o => {
+                    const total = o.summary ? o.summary.total : 0;
+                    let statusBadge = `<span style="background: #eaf2ff; color: #1a73e8; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">${o.status}</span>`;
+                    if (o.status === 'Accepted' || o.status === 'PAID') {
+                        statusBadge = `<span style="background: #e6f4ea; color: #137333; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">${o.status === 'PAID' ? 'Paid' : 'Accepted'}</span>`;
+                    } else if (o.status === 'Processing') {
+                        statusBadge = `<span style="background: #fef7e0; color: #b06000; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">Proc.</span>`;
+                    } else if (o.status === 'Shipped') {
+                        statusBadge = `<span style="background: #e2f1ff; color: #1a73e8; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">Shipped</span>`;
+                    }
+
+                    const isActive = o.orderId === window.activeOrderId ? 'style="background: #faf8f5; border-left: 3px solid #C5A059;"' : '';
+
+                    return `
+                        <tr ${isActive} onclick="selectOrder('${o.orderId}')" style="cursor: pointer;">
+                            <td><div style="font-weight: 600;">#${o.orderId}</div></td>
+                            <td>${escapeHTML(o.customer)}</td>
+                            <td style="font-size: 0.8rem; color: #666;">${o.date}</td>
+                            <td style="font-weight: 500;">&#8377;${total.toLocaleString()}</td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                <button class="btn-outline" style="padding: 3px 8px; font-size: 0.75rem;" onclick="event.stopPropagation(); selectOrder('${o.orderId}')">View</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.renderActiveOrder = (orderId) => {
+            const order = state.orders ? state.orders.find(o => o.orderId === orderId) : null;
+            const container = document.getElementById('active-order-details-container');
+            if (!container) return;
+
+            if (!order) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 40px; color: #888;">
+                        Select an order to view details.
+                    </div>
+                `;
+                return;
+            }
+
+            let bannerStyle = 'background: #e8f0fe; color: #1967d2;';
+            let bannerText = '&#10024; New Order';
+            if (order.status === 'Accepted' || order.status === 'PAID') {
+                bannerStyle = 'background: #e6f4ea; color: #137333;';
+                bannerText = '&#9989; Order Accepted';
+            } else if (order.status === 'Processing') {
+                bannerStyle = 'background: #fef7e0; color: #b06000;';
+                bannerText = '&#9997; Processing';
+            } else if (order.status === 'Shipped') {
+                bannerStyle = 'background: #eaf2ff; color: #1a73e8;';
+                bannerText = '&#128666; Shipped';
+            }
+
+            const subtotal = order.summary ? order.summary.subtotal : 0;
+            const tax = order.summary ? order.summary.tax : 0;
+            const discount = order.summary ? order.summary.discount : 0;
+            const total = order.summary ? order.summary.total : subtotal;
+
+            let itemsHtml = '';
+            if (order.items && order.items.length > 0) {
+                itemsHtml = order.items.map(item => {
+                    const price = typeof item.price === 'string' ? item.price : `\u20B9${item.price.toLocaleString()}`;
+                    const itemImg = item.img || window.fallbackImg;
+                    const variantText = item.variant ? `Size: ${item.variant.size || 'Standard'} | Color: ${item.variant.color || 'Gold'}` : '';
+                    return `
+                        <div style="display: flex; gap: 15px; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee;">
+                            <img src="${itemImg}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" onerror="this.onerror=null; this.src=window.fallbackImg;">
+                            <div style="flex-grow: 1;">
+                                <div style="font-weight: 600; color: #333;">${escapeHTML(item.name)}</div>
+                                <div style="font-size: 0.85rem; color: #666;">${escapeHTML(variantText)}</div>
+                                <div style="font-size: 0.85rem; color: #888;">Qty: ${item.quantity} &times; ${price}</div>
+                            </div>
+                            <div style="font-weight: 600; color: #111;">&#8377;${(Number(String(price).replace(/[^0-9.]/g, '')) * item.quantity).toLocaleString()}</div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                itemsHtml = `<div style="color: #888; padding: 10px 0;">No items in this order.</div>`;
+            }
+
+            const formattedAddress = String(order.address).replace(/\n/g, '<br>');
+
+            container.innerHTML = `
+                <div class="order-details-card" style="transition: transform 0.3s ease;">
+                    <div class="order-actions">
+                        <button onclick="printInvoice('${order.orderId}')"
+                            style="background: #f1f3f4; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #333; display: flex; align-items: center; gap: 5px; transition: 0.2s;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+                                <path d="M6 14h12v8H6z" />
+                            </svg>
+                            Print
+                        </button>
+                        <button onclick="downloadPDF('${order.orderId}')"
+                            style="background: #f1f3f4; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #333; display: flex; align-items: center; gap: 5px; transition: 0.2s;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            PDF
+                        </button>
+                    </div>
+
+                    <div id="order-status-banner" style="${bannerStyle} padding: 8px 16px; border-radius: 50px; margin-bottom: 2rem; display: inline-block; font-weight: 500; font-size: 0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+                        ${bannerText}
+                    </div>
+
+                    <div class="order-info-header">
+                        <div>
+                            <div style="color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px;">Order Number</div>
+                            <h2 style="font-weight: 600; font-size: 1.8rem; margin: 0; color: #333;">#${order.orderId}</h2>
+                            <div style="margin-top: 10px;">
+                                <span style="background: #e6f4ea; color: #137333; padding: 6px 16px; border-radius: 50px; font-size: 0.8rem; font-weight: 600; display: inline-block;">${order.status}</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px;">Total Amount</div>
+                            <div style="font-size: 2.2rem; font-weight: 600; color: #111;">&#8377;${total.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    <!-- Items List -->
+                    <div style="margin-bottom: 2rem;">
+                        <h4 style="margin-bottom: 10px; color: #888; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;">Order Items</h4>
+                        ${itemsHtml}
+                    </div>
+
+                    <div class="order-grid-2col" style="grid-template-columns: 1fr; gap: 1.5rem;">
+                        <div class="order-customer-details" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div>
+                                <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Customer</label>
+                                <div style="font-weight: 500; font-size: 1rem; color: #333;">${escapeHTML(order.customer)}</div>
+                                <div style="color: #666; font-size: 0.85rem; margin-top: 2px;">${escapeHTML(order.email)}</div>
+                            </div>
+                            <div>
+                                <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Order Date & Time</label>
+                                <div style="font-weight: 500; font-size: 1rem; color: #333;">${order.date}</div>
+                                <div style="color: #666; font-size: 0.85rem; margin-top: 2px;">${order.time}</div>
+                            </div>
+                            <div>
+                                <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Payment Method</label>
+                                <div style="font-weight: 500; font-size: 1rem; color: #333;">${order.paymentMethod || 'Credit Card'}</div>
+                            </div>
+                            <div>
+                                <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Financial Summary</label>
+                                <div style="font-size: 0.85rem; color: #666;">
+                                    Subtotal: &#8377;${subtotal.toLocaleString()}<br>
+                                    Discount: -&#8377;${discount.toLocaleString()}<br>
+                                    Tax: &#8377;${tax.toLocaleString()}
+                                </div>
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Delivery Address</label>
+                                <div style="font-weight: 500; line-height: 1.5; color: #333; font-size: 0.95rem;">
+                                    ${formattedAddress}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="order-bottom-actions" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+                        <button id="btn-accept-order" onclick="updateOrderStatus('${order.orderId}', 'Accepted')"
+                            style="background: #1a73e8; color: white; border: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; ${order.status === 'Accepted' || order.status === 'PAID' ? 'background: #e6f4ea; color: #137333; box-shadow: none;' : 'box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);'}">
+                            ${order.status === 'Accepted' || order.status === 'PAID' ? 'Accepted' : 'Accept Order'}
+                        </button>
+                        <button onclick="updateOrderStatus('${order.orderId}', 'Processing')"
+                            style="background: white; color: #3c4043; border: 1px solid #dadce0; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; ${order.status === 'Processing' ? 'background: #fef7e0; color: #b06000;' : ''}">
+                            Process Order
+                        </button>
+                        <button onclick="updateOrderStatus('${order.orderId}', 'Shipped')"
+                            style="background: white; color: #3c4043; border: 1px solid #dadce0; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; ${order.status === 'Shipped' ? 'background: #eaf2ff; color: #1a73e8;' : ''}">
+                            Ship Order
+                        </button>
+                        <button onclick="deleteOrder('${order.orderId}')"
+                            style="background: white; color: #d93025; border: 1px solid #dadce0; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.85rem;">
+                            Delete Order
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
         window.saveSettings = () => {
             state.header.logo = document.getElementById('setting-logo').value;
 
             state.hero.heading = document.getElementById('setting-hero-heading').value;
             state.hero.subheading = document.getElementById('setting-hero-subheading').value;
             state.hero.buttonText = document.getElementById('setting-hero-btn').value;
+
+            if (!state.about) state.about = {};
+            state.about.title = document.getElementById('setting-about-title').value;
+            state.about.text = document.getElementById('setting-about-text').value;
+            state.about.img = document.getElementById('setting-about-img').value;
 
             // Save Image Config
             if (!state.config) state.config = {};
@@ -1147,7 +1709,8 @@
 
             document.getElementById('edit-name').value = '';
             document.getElementById('edit-price').value = '';
-            document.getElementById('edit-category').value = 'Necklaces';
+            document.getElementById('edit-category').value = 'Necklace';
+            document.getElementById('edit-stock').value = 0;
             document.getElementById('edit-img').value = '';
 
             // Image Upload Reset
@@ -1174,7 +1737,8 @@
                 const product = state.bestSellers.find(p => p.id === id);
                 document.getElementById('edit-name').value = product.name;
                 document.getElementById('edit-price').value = product.price;
-                document.getElementById('edit-category').value = product.category;
+                document.getElementById('edit-category').value = product.category === 'Necklaces' ? 'Necklace' : product.category;
+                document.getElementById('edit-stock').value = product.stock || 0;
                 document.getElementById('edit-img').value = product.img;
 
                 // Preview
@@ -1221,23 +1785,31 @@
             const type = document.getElementById('edit-type').value;
             const id = document.getElementById('edit-id').value;
 
-            const name = document.getElementById('edit-name').value;
+            const name = document.getElementById('edit-name').value.trim();
+            if (!name) { alert('Enter a name.'); return; }
             const img = document.getElementById('edit-img').value;
 
             if (type === 'product') {
-                const price = document.getElementById('edit-price').value;
+                const rawPrice = document.getElementById('edit-price').value.trim();
+                const value = Number(rawPrice.replace(/[₹,\s]/g, ''));
+                const stock = Number(document.getElementById('edit-stock').value);
+                if (!rawPrice || !Number.isFinite(value) || value < 0 || !Number.isInteger(stock) || stock < 0) {
+                    alert('Enter a valid price and a non-negative whole stock quantity.'); return;
+                }
+                const price = '₹' + value.toLocaleString('en-IN', {maximumFractionDigits: 2});
                 const category = document.getElementById('edit-category').value;
 
                 if (id === 'new') {
                     // Add New
                     const newId = state.bestSellers.length > 0 ? Math.max(...state.bestSellers.map(p => p.id)) + 1 : 1;
-                    state.bestSellers.push({ id: newId, name, price, category, img });
+                    state.bestSellers.push({ id: newId, name, price, category, img, stock });
                 } else {
                     // Update
                     const product = state.bestSellers.find(p => p.id == id);
                     if (product) {
                         product.name = name;
                         product.price = price;
+                        product.stock = stock;
                         product.category = category;
                         product.img = img;
                     }
@@ -1261,9 +1833,9 @@
             closeModal();
         };
 
-        window.deleteItem = () => {
-            const type = document.getElementById('edit-type').value;
-            const id = document.getElementById('edit-id').value;
+        window.deleteItem = (selectedType, selectedId) => {
+            const type = selectedType || document.getElementById('edit-type').value;
+            const id = selectedId ?? document.getElementById('edit-id').value;
 
             if (type === 'product' && id !== 'new') {
                 if (confirm('Are you sure you want to delete this product?')) {
@@ -1288,7 +1860,7 @@
         // Auto-refresh if changes happen elsewhere
         window.addEventListener('storage', (e) => {
             if (e.key === 'hiyara_state_v1') {
-                state = JSON.parse(e.newValue);
+                state = HiyaraState.read(defaultState);
                 renderdashboard();
             }
         });
@@ -1297,7 +1869,7 @@
         window.addEventListener('focus', () => {
             const stored = localStorage.getItem('hiyara_state_v1');
             if (stored) {
-                const storedState = JSON.parse(stored);
+                const storedState = HiyaraState.read(defaultState);
                 if (JSON.stringify(storedState) !== JSON.stringify(state)) {
                     state = storedState;
                     renderdashboard();
@@ -1305,149 +1877,199 @@
             }
         });
 
-        window.printInvoice = () => {
-            const invoiceContent = `
+        function generateInvoiceHTML(order) {
+            const subtotal = order.summary ? order.summary.subtotal : 0;
+            const tax = order.summary ? order.summary.tax : 0;
+            const discount = order.summary ? order.summary.discount : 0;
+            const total = order.summary ? order.summary.total : subtotal;
+
+            const itemsHtml = order.items.map(item => {
+                const price = typeof item.price === 'string' ? item.price : `\u20B9${item.price.toLocaleString()}`;
+                const variantText = item.variant ? `Size: ${item.variant.size || 'Standard'} | Color: ${item.variant.color || 'Gold'}` : '';
+                const totalItemPrice = Number(String(price).replace(/[^0-9.]/g, '')) * item.quantity;
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">${escapeHTML(item.name)}</div>
+                            <div style="font-size: 0.85rem; color: #666;">${escapeHTML(variantText)}</div>
+                        </td>
+                        <td style="text-align: center;">${item.quantity}</td>
+                        <td style="text-align: right;">\u20B9${Number(String(price).replace(/[^0-9.]/g, '')).toLocaleString()}</td>
+                        <td style="text-align: right;">\u20B9${totalItemPrice.toLocaleString()}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const formattedAddress = String(order.address).replace(/\n/g, '<br>');
+
+            return `
             <!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>Invoice #HY-8291 - Hiyara</title>
-                        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
-                            <style>
-                                body {font - family: 'Outfit', sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
-                                .header {display: flex; justify-content: space-between; border-bottom: 2px solid #C5A059; padding-bottom: 20px; margin-bottom: 40px; }
-                                .logo {font-family: 'Sirenik', 'Sirenik Regular', serif; font-size: 2rem; color: #C5A059; }
-                                .invoice-title {font - size: 1.5rem; color: #111; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; }
-                                .details {display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-                                .label {font - size: 0.8rem; text-transform: uppercase; color: #888; margin-bottom: 5px; letter-spacing: 0.05em; }
-                                .value {font - weight: 500; font-size: 1.1rem; }
-                                .table {width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-                                .table th {text - align: left; border-bottom: 1px solid #ddd; padding: 10px 0; color: #888; font-weight: 500; font-size: 0.9rem; }
-                                .table td {padding: 15px 0; border-bottom: 1px solid #eee; }
-                                .total-section {text - align: right; margin-top: 20px; }
-                                .total-row {display: inline-block; min-width: 200px; }
-                                .grand-total {font - size: 1.5rem; font-weight: 600; color: #C5A059; margin-top: 10px; }
-                                .footer {margin - top: 60px; text-align: center; color: #888; font-size: 0.9rem; border-top: 1px solid #eee; padding-top: 20px; }
-                                @media print {body {padding: 0; } }
-                                @media (max-width: 480px) {
-                                    body { padding: 15px; font-size: 0.9rem; }
-                                    .header { flex-direction: column; text-align: center; gap: 10px; }
-                                    .invoice-title { font-size: 1.2rem; }
-                                    .details { grid-template-columns: 1fr; gap: 20px; text-align: center !important; }
-                                    .details > div { text-align: center !important; }
-                                    .table { font-size: 0.8rem; }
-                                    .table th, .table td { padding: 8px 5px; }
-                                    .total-section { text-align: center; }
-                                }
-                            </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <div class="logo">Hiyara</div>
-                            <div class="invoice-title">Invoice</div>
+            <html>
+                <head>
+                    <title>Invoice #${order.orderId} - Hiyara</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+                    <style>
+                        body { font-family: 'Outfit', sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
+                        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #C5A059; padding-bottom: 20px; margin-bottom: 40px; }
+                        .logo { font-family: 'Sirenik', 'Sirenik Regular', serif; font-size: 2rem; color: #C5A059; }
+                        .invoice-title { font-size: 1.5rem; color: #111; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; }
+                        .details { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+                        .label { font-size: 0.8rem; text-transform: uppercase; color: #888; margin-bottom: 5px; letter-spacing: 0.05em; }
+                        .value { font-weight: 500; font-size: 1.1rem; }
+                        .table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                        .table th { text-align: left; border-bottom: 1px solid #ddd; padding: 10px 0; color: #888; font-weight: 500; font-size: 0.9rem; }
+                        .table td { padding: 15px 0; border-bottom: 1px solid #eee; }
+                        .total-section { text-align: right; margin-top: 20px; }
+                        .total-row { display: inline-block; min-width: 200px; }
+                        .grand-total { font-size: 1.5rem; font-weight: 600; color: #C5A059; margin-top: 10px; }
+                        .footer { margin-top: 60px; text-align: center; color: #888; font-size: 0.9rem; border-top: 1px solid #eee; padding-top: 20px; }
+                        @media print { body { padding: 0; } }
+                        @media (max-width: 480px) {
+                            body { padding: 15px; font-size: 0.9rem; }
+                            .header { flex-direction: column; text-align: center; gap: 10px; }
+                            .invoice-title { font-size: 1.2rem; }
+                            .details { grid-template-columns: 1fr; gap: 20px; text-align: center !important; }
+                            .details > div { text-align: center !important; }
+                            .table { font-size: 0.8rem; }
+                            .table th, .table td { padding: 8px 5px; }
+                            .total-section { text-align: center; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logo">Hiyara</div>
+                        <div class="invoice-title">Invoice</div>
+                    </div>
+
+                    <div class="details">
+                        <div>
+                            <div class="label">Billed To</div>
+                            <div class="value">${escapeHTML(order.customer)}</div>
+                            <div>${formattedAddress}</div>
+                            <div>${escapeHTML(order.email)}</div>
                         </div>
-
-                        <div class="details">
-                            <div>
-                                <div class="label">Billed To</div>
-                                <div class="value">Priya Sharma</div>
-                                <div>A-45, Regency Park, DLF Phase IV</div>
-                                <div>Gurgaon, Haryana, 122002</div>
-                                <div>priya.sharma@example.com</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div class="label">Invoice Number</div>
-                                <div class="value">#HY-8291</div>
-                                <br>
-                                <div class="label">Date</div>
-                                <div class="value">October 24, 2026</div>
-                                <br>
-                                <div class="label">Status</div>
-                                <div style="color: green; font-weight: 600;">PAID</div>
-                            </div>
+                        <div style="text-align: right;">
+                            <div class="label">Invoice Number</div>
+                            <div class="value">#${order.orderId}</div>
+                            <br>
+                            <div class="label">Date</div>
+                            <div class="value">${order.date}</div>
+                            <br>
+                            <div class="label">Status</div>
+                            <div style="color: ${order.status === 'Accepted' || order.status === 'PAID' ? 'green' : 'orange'}; font-weight: 600;">${order.status.toUpperCase()}</div>
                         </div>
+                    </div>
 
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Item Description</th>
-                                        <th style="text-align: center;">Qty</th>
-                                        <th style="text-align: right;">Price</th>
-                                        <th style="text-align: right;">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>
-                                            <div style="font-weight: 500;">Golden Solitaire Ring</div>
-                                            <div style="font-size: 0.85rem; color: #666;">Size: Standard</div>
-                                        </td>
-                                        <td style="text-align: center;">1</td>
-                                        <td style="text-align: right;">â‚¹95,000</td>
-                                        <td style="text-align: right;">â‚¹95,000</td>
-                                    </tr>
-                            <!-- Example Extra Item -->
-                                    <!-- <tr>
-                                        <td>Gift Packaging</td>
-                                        <td style="text-align: center;">1</td>
-                                        <td style="text-align: right;">â‚¹0</td>
-                                        <td style="text-align: right;">FREE</td>
-                                    </tr> -->
-                                </tbody>
-                            </table>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Item Description</th>
+                                <th style="text-align: center;">Qty</th>
+                                <th style="text-align: right;">Price</th>
+                                <th style="text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsHtml}
+                        </tbody>
+                    </table>
 
-                            <div class="total-section">
-                                <div class="total-row">
-                                    <span style="color: #666;">Subtotal:</span>
-                                    <span style="float: right;">â‚¹95,000</span>
-                                </div>
-                                <br>
-                                <div class="total-row">
-                                    <span style="color: #666;">Tax (3%):</span>
-                                    <span style="float: right;">Included</span>
-                                </div>
-                                <br>
-                                <div class="total-row grand-total">
-                                    <span>Total:</span>
-                                    <span style="float: right;">â‚¹95,000</span>
-                                </div>
-                            </div>
+                    <div class="total-section">
+                        <div class="total-row">
+                            <span style="color: #666;">Subtotal:</span>
+                            <span style="float: right;">\u20B9${subtotal.toLocaleString()}</span>
+                        </div>
+                        <br>
+                        ${discount > 0 ? `
+                        <div class="total-row">
+                            <span style="color: #666;">Discount:</span>
+                            <span style="float: right;">-\u20B9${discount.toLocaleString()}</span>
+                        </div>
+                        <br>
+                        ` : ''}
+                        <div class="total-row">
+                            <span style="color: #666;">Tax:</span>
+                            <span style="float: right;">\u20B9${tax.toLocaleString()}</span>
+                        </div>
+                        <br>
+                        <div class="total-row grand-total">
+                            <span>Total:</span>
+                            <span style="float: right;">\u20B9${total.toLocaleString()}</span>
+                        </div>
+                    </div>
 
-                            <div class="footer">
-                                        <p>Thank you for choosing Hiyara.</p>
-                                        <p>For support, contact concierge@hiyara.com</p>
-                                    </div>
+                    <div class="footer">
+                        <p>Thank you for choosing Hiyara.</p>
+                        <p>For support, contact concierge@hiyara.com</p>
+                    </div>
+                </body>
+            </html>
+            `;
+        }
 
-                                    <script>
-                                        window.onload = function() {window.print(); }
-                                    <\/script>
-                                </body>
-                            </html>
-`;
+        window.printInvoice = (orderId) => {
+            const id = orderId || window.activeOrderId;
+            const order = state.orders.find(o => o.orderId === id);
+            if (!order) return;
 
+            const invoiceContent = generateInvoiceHTML(order);
             const printWindow = window.open('', '_blank');
+            if (!printWindow) { alert('Allow pop-ups to print this invoice.'); return; }
             printWindow.document.write(invoiceContent);
+            printWindow.document.write('<script>window.onload = function() { window.print(); }<\/script>');
             printWindow.document.close();
         };
 
+        window.downloadPDF = (orderId) => {
+            const id = orderId || window.activeOrderId;
+            const order = state.orders.find(o => o.orderId === id);
+            if (!order) return;
+
+            const element = document.createElement('div');
+            element.innerHTML = generateInvoiceHTML(order);
+
+            const opt = {
+                margin:       10,
+                filename:     `invoice_${order.orderId}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            if (typeof html2pdf !== 'function') { alert('PDF export could not load. Use Print Invoice and Save as PDF.'); return; }
+            html2pdf().from(element).set(opt).save().catch(() => alert('PDF export failed. Try Print Invoice instead.'));
+        };
+
+        window.updateOrderStatus = (orderId, newStatus) => {
+            const id = orderId || window.activeOrderId;
+            const order = state.orders.find(o => o.orderId === id);
+            if (order) {
+                order.status = newStatus;
+                localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+                renderdashboard();
+                alert(`Order #${id} status updated to ${newStatus}.`);
+            }
+        };
+
+        window.deleteOrder = (orderId) => {
+            const id = orderId || window.activeOrderId;
+            if (confirm(`Are you sure you want to delete order #${id}?`)) {
+                state.orders = state.orders.filter(o => o.orderId !== id);
+                if (window.activeOrderId === id) {
+                    window.activeOrderId = state.orders.length > 0 ? state.orders[0]?.orderId || null : '';
+                }
+                localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+                renderdashboard();
+            }
+        };
 
         window.acceptOrder = () => {
-            // Update Banner
-            const banner = document.getElementById('order-status-banner');
-            banner.style.background = '#e6f4ea';
-            banner.style.color = '#137333';
-            banner.innerHTML = 'âœ… Order Accepted';
-
-            // Update Button
-            const btn = document.getElementById('btn-accept-order');
-            btn.innerHTML = 'Accepted';
-            btn.style.background = '#e6f4ea';
-            btn.style.color = '#137333';
-            btn.style.boxShadow = 'none';
-            btn.dled;
-
-            // Notification
-            alert('Order #HY-8291 has been accepted and moved to processing.');
+            if (window.activeOrderId) {
+                window.updateOrderStatus(window.activeOrderId, 'Accepted');
+            }
         };
+
     </script>
 </body>
 

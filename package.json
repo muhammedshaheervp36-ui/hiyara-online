@@ -1,0 +1,15 @@
+{
+  "name": "hiyara-web",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Hiyara storefront preview and customer admin",
+  "scripts": {
+    "start": "node server.js",
+    "setup-admin": "node scripts/setup-admin.js",
+    "test": "node --test scripts/regression.test.js scripts/frontend.test.js",
+    "build": "node scripts/build-static.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
