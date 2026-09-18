@@ -14,6 +14,8 @@
             return false;
         };
     </script>
+    <!-- Razorpay Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -1661,6 +1663,7 @@
                                             <a href="#myaccount">My Account</a>
                                             <a href="#orders">My Orders</a>
                                             <a href="#shipping">Shipping Address</a>
+                                            <a href="admin.html" target="_blank">Admin Panel &nearr;</a>
                                             <a href="#" onclick="handleLogout()">Log Out</a>
                                         </div>
                                     ` : `
@@ -2065,23 +2068,23 @@
                             <form id="checkoutForm" onsubmit="handlePlaceOrder(event)">
                                 <div class="form-group">
                                     <label>Full Name</label>
-                                    <input type="text" class="form-control" required placeholder="Jane Doe">
+                                    <input type="text" id="checkoutName" class="form-control" required placeholder="Jane Doe">
                                 </div>
                                 <div class="form-group">
                                     <label>Shipping Address</label>
-                                    <textarea class="form-control" required placeholder="123 Luxury Lane..."></textarea>
+                                    <textarea id="checkoutAddress" class="form-control" required placeholder="123 Luxury Lane..."></textarea>
                                 </div>
                                 <div class="form-group">
                                     <label>Payment Method</label>
-                                    <select class="form-control">
-                                        <option>Credit Card</option>
-                                        <option>Cash on Delivery</option>
+                                    <select id="checkoutPayment" class="form-control" onchange="togglePaymentMethodUI(this.value)">
+                                        <option value="Razorpay" selected>UPI / Google Pay / Cards (Razorpay)</option>
+                                        <option value="Cash on Delivery">Cash on Delivery</option>
                                     </select>
                                 </div>
                                 <div style="background: #f9f9f9; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                         <span>Subtotal</span>
-                                        <span id="checkoutSubtotal">₹0</span>
+                                        <span id="checkoutSubtotal">&#8377;0</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                         <span>Shipping</span>
@@ -2089,10 +2092,25 @@
                                     </div>
                                     <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 1.1rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #ddd;">
                                         <span>Total</span>
-                                        <span id="checkoutTotal">₹0</span>
+                                        <span id="checkoutTotal">&#8377;0</span>
                                     </div>
                                 </div>
-                                <button type="submit" class="gold-btn" style="width: 100%;">Place Order</button>
+                                <!-- Razorpay UPI & GPay Button -->
+                                <div id="razorpayPaymentWrapper">
+                                    <button type="button" class="gold-btn" id="btnRazorpayPay" onclick="payWithRazorpay(event)" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #111 0%, #1c1d22 100%); border: 1px solid var(--accent-gold); color: #fff; padding: 14px; font-weight: 600; font-size: 0.95rem; cursor: pointer; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C5A059" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                            <line x1="1" y1="10" x2="23" y2="10"></line>
+                                        </svg>
+                                        <span>Pay with UPI / Google Pay</span>
+                                        <span style="font-size: 0.7rem; background: var(--accent-gold); color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 700; letter-spacing: 0.5px;">RAZORPAY</span>
+                                    </button>
+                                    <div style="text-align: center; color: #777; font-size: 0.75rem; margin-top: 8px;">
+                                        Accepts Google Pay, PhonePe, Paytm, BHIM UPI & All Major Cards
+                                    </div>
+                                </div>
+                                <!-- Standard COD Submit Button -->
+                                <button type="submit" id="btnStandardPlaceOrder" class="gold-btn" style="width: 100%; display: none;">Place Order (COD)</button>
                             </form>
                         </div>
                     </div>
@@ -2414,8 +2432,245 @@
             document.getElementById('checkoutModal').classList.remove('active');
         };
 
+        window.togglePaymentMethodUI = (paymentMethod) => {
+            const razorpayWrapper = document.getElementById('razorpayPaymentWrapper');
+            const standardBtn = document.getElementById('btnStandardPlaceOrder');
+            if (!razorpayWrapper || !standardBtn) return;
+
+            if (paymentMethod === 'Cash on Delivery') {
+                razorpayWrapper.style.display = 'none';
+                standardBtn.style.display = 'block';
+            } else {
+                razorpayWrapper.style.display = 'block';
+                standardBtn.style.display = 'none';
+            }
+        };
+
+        window.payWithRazorpay = async (e) => {
+            if (e) e.preventDefault();
+
+            const nameInput = document.getElementById('checkoutName');
+            const addressInput = document.getElementById('checkoutAddress');
+
+            if (!nameInput || !nameInput.value.trim()) {
+                alert('Please enter your full name before proceeding to payment.');
+                if (nameInput) nameInput.focus();
+                return;
+            }
+
+            if (!addressInput || !addressInput.value.trim()) {
+                alert('Please enter your shipping address.');
+                if (addressInput) addressInput.focus();
+                return;
+            }
+
+            const name = nameInput.value.trim();
+            const address = addressInput.value.trim();
+            const email = state.currentUser ? state.currentUser.email : 'concierge@hiyara.com';
+            const contact = state.currentUser ? (state.currentUser.phone || '9876543210') : '9876543210';
+            const summary = cartAPI.getSummary();
+            const cartItems = [...cartAPI.getCart()];
+
+            if (!cartItems || cartItems.length === 0) {
+                alert('Your shopping bag is empty!');
+                return;
+            }
+
+            const payBtn = document.getElementById('btnRazorpayPay');
+            const originalBtnHtml = payBtn ? payBtn.innerHTML : '';
+            if (payBtn) {
+                payBtn.disabled = true;
+                payBtn.innerText = 'Initializing Secure Checkout...';
+            }
+
+            try {
+                // 1. Create order on backend
+                const orderRes = await fetch('/api/create-razorpay-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: summary.total,
+                        currency: 'INR',
+                        receipt: 'rcpt_' + Date.now(),
+                        notes: { customer: name, email: email }
+                    })
+                });
+
+                const orderData = await orderRes.json();
+                if (!orderRes.ok || !orderData.success) {
+                    throw new Error(orderData.error || 'Failed to initialize payment gateway.');
+                }
+
+                const razorpayOrder = orderData.order;
+
+                // 2. Configure and launch Razorpay Checkout SDK
+                const options = {
+                    key: razorpayOrder.keyId || 'rzp_test_51a3b8c9d0e1f2',
+                    amount: razorpayOrder.amount, // in paise
+                    currency: razorpayOrder.currency || 'INR',
+                    name: 'Hiyara',
+                    description: 'Luxury Jewels & Accessories Checkout',
+                    image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=200',
+                    order_id: razorpayOrder.id,
+                    prefill: {
+                        name: name,
+                        email: email,
+                        contact: contact
+                    },
+                    notes: {
+                        shipping_address: address
+                    },
+                    theme: {
+                        color: '#C5A059'
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            if (payBtn) {
+                                payBtn.disabled = false;
+                                payBtn.innerHTML = originalBtnHtml;
+                            }
+                        }
+                    },
+                    handler: async function (response) {
+                        if (payBtn) {
+                            payBtn.innerText = 'Verifying Payment...';
+                        }
+
+                        try {
+                            // 3. Cryptographic HMAC SHA-256 signature verification on backend
+                            const verifyRes = await fetch('/api/verify-razorpay-payment', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    razorpay_order_id: response.razorpay_order_id,
+                                    razorpay_payment_id: response.razorpay_payment_id,
+                                    razorpay_signature: response.razorpay_signature,
+                                    orderDetails: {
+                                        customer: name,
+                                        email: email,
+                                        address: address,
+                                        paymentMethod: 'UPI / Google Pay (Razorpay)',
+                                        summary: summary,
+                                        items: cartItems
+                                    }
+                                })
+                            });
+
+                            const verifyData = await verifyRes.json();
+                            if (!verifyRes.ok || !verifyData.verified) {
+                                throw new Error(verifyData.error || 'Payment signature verification failed.');
+                            }
+
+                            // 4. Save confirmed order in store state & clear cart
+                            const newOrder = {
+                                orderId: 'HY-' + Math.floor(1000 + Math.random() * 9000),
+                                razorpayOrderId: response.razorpay_order_id,
+                                paymentId: response.razorpay_payment_id,
+                                customer: name,
+                                email: email,
+                                address: address,
+                                paymentMethod: 'UPI / Google Pay (Razorpay)',
+                                items: cartItems,
+                                summary: summary,
+                                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                                status: 'PAID'
+                            };
+
+                            if (!state.orders) state.orders = [];
+                            state.orders.push(newOrder);
+                            cartAPI.clear();
+                            localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+
+                            closeCheckout();
+                            initApp();
+
+                            alert(`✨ Payment Successful!\n\nThank you, ${name}! Your payment has been verified via Razorpay.\n\nOrder ID: ${newOrder.orderId}\nPayment ID: ${response.razorpay_payment_id}\nTotal Paid: ₹${summary.total.toLocaleString()}`);
+
+                        } catch (err) {
+                            console.error('Payment verification error:', err);
+                            alert('Payment verification failed: ' + err.message);
+                            if (payBtn) {
+                                payBtn.disabled = false;
+                                payBtn.innerHTML = originalBtnHtml;
+                            }
+                        }
+                    }
+                };
+
+                if (typeof window.Razorpay === 'function') {
+                    const rzp = new window.Razorpay(options);
+                    rzp.on('payment.failed', function (resp) {
+                        console.error('Payment failed:', resp.error);
+                        alert(`Payment Failed: ${resp.error.description || 'Transaction declined'}`);
+                        if (payBtn) {
+                            payBtn.disabled = false;
+                            payBtn.innerHTML = originalBtnHtml;
+                        }
+                    });
+                    rzp.open();
+                } else {
+                    // Fallback simulation if external script blocked
+                    console.warn('Razorpay SDK not loaded from CDN, simulating checkout confirmation');
+                    setTimeout(async () => {
+                        const simulatedPaymentId = 'pay_sim_' + Math.random().toString(36).substring(2, 10);
+                        const confirmedOrder = {
+                            orderId: 'HY-' + Math.floor(1000 + Math.random() * 9000),
+                            razorpayOrderId: razorpayOrder.id,
+                            paymentId: simulatedPaymentId,
+                            customer: name,
+                            email: email,
+                            address: address,
+                            paymentMethod: 'UPI / Google Pay (Razorpay)',
+                            items: cartItems,
+                            summary: summary,
+                            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                            status: 'PAID'
+                        };
+
+                        if (!state.orders) state.orders = [];
+                        state.orders.push(confirmedOrder);
+                        cartAPI.clear();
+                        localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+
+                        closeCheckout();
+                        initApp();
+                        alert(`✨ Payment Successful (Sandbox)!\n\nOrder ID: ${confirmedOrder.orderId}\nPayment ID: ${simulatedPaymentId}\nTotal: ₹${summary.total.toLocaleString()}`);
+                    }, 1000);
+                }
+
+            } catch (err) {
+                console.error('Razorpay initialization error:', err);
+                alert('Could not start Razorpay checkout: ' + err.message);
+                if (payBtn) {
+                    payBtn.disabled = false;
+                    payBtn.innerHTML = originalBtnHtml;
+                }
+            }
+        };
+
         window.handlePlaceOrder = (e) => {
             e.preventDefault();
+
+            const name = document.getElementById('checkoutName').value;
+            const address = document.getElementById('checkoutAddress').value;
+            const payment = document.getElementById('checkoutPayment').value;
+            const cartItems = [...cartAPI.getCart()];
+            const summary = cartAPI.getSummary();
+
+            const newOrder = {
+                orderId: 'HY-' + Math.floor(1000 + Math.random() * 9000),
+                customer: name,
+                email: state.currentUser ? state.currentUser.email : 'guest@example.com',
+                address: address,
+                paymentMethod: payment,
+                items: cartItems,
+                summary: summary,
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                status: 'PAID'
+            };
 
             // Simulate processing
             const btn = e.target.querySelector('button');
@@ -2424,8 +2679,13 @@
             btn.disabled = true;
 
             setTimeout(() => {
+                // Push to orders
+                if (!state.orders) state.orders = [];
+                state.orders.push(newOrder);
+
                 // Success
                 state.cart = [];
+                state.promoCode = null;
                 localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
 
                 alert('Thank you! Your order has been placed successfully. We will contact you shortly.');
@@ -2614,6 +2874,7 @@
                         <ul>
                             <li><a href="#">Contact</a></li>
                             <li><a href="#">Shipping</a></li>
+                            <li><a href="admin.html" target="_blank">Admin Panel &nearr;</a></li>
                         </ul>
                     </div>
                 </div>

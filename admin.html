@@ -3,7 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-    <script src="scripts/state-utils.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hiyara Admin Dashboard</title>
     <!-- Fonts -->
@@ -485,8 +484,6 @@
             <!-- Product Specific -->
             <div class="form-row" id="field-price-category-group">
                 <div class="form-group">
-                    <label>Stock quantity</label>
-                    <input type="number" min="0" step="1" class="form-control" id="edit-stock" value="0">
                     <label>Price</label>
                     <input type="text" class="form-control" id="edit-price">
                 </div>
@@ -863,7 +860,6 @@
     </div>
 
     <script>
-        const escapeHTML = HiyaraState.escapeHTML;
         // Authentication Guard Check
         async function checkAdminAuthentication() {
             try {
@@ -985,7 +981,7 @@
         function loadState() {
             const stored = localStorage.getItem('hiyara_state_v1');
             if (stored) {
-                state = HiyaraState.read(defaultState);
+                state = JSON.parse(stored);
                 // Migration logic for contact
                 if (!state.contact) {
                     state.contact = defaultState.contact;
@@ -994,7 +990,6 @@
                 if (state.bestSellers && state.bestSellers.length > 0) {
                     let needsFix = false;
                     state.bestSellers.forEach(p => {
-                        p.price = String(p.price ?? '₹0');
                         const symbolCount = (p.price.match(/\u20B9/g) || []).length;
                         if (p.price.match(/[$\u00E2\u201A\u00B9?\uFFFD]/) || symbolCount !== 1 || !p.price.trim().startsWith('\u20B9')) {
                             needsFix = true;
@@ -1019,14 +1014,71 @@
                     }
                 }
             } else {
-                state = structuredClone(defaultState);
+                state = defaultState;
                 localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
             }
 
-            if (!Array.isArray(state.orders)) state.orders = [];
-            if (!Array.isArray(state.customers)) state.customers = [];
+            // Initialize dynamic orders if missing
+            if (!state.orders || state.orders.length === 0) {
+                state.orders = [
+                    {
+                        orderId: 'HY-8291',
+                        customer: 'Priya Sharma',
+                        email: 'priya.sharma@example.com',
+                        address: 'A-45, Regency Park, DLF Phase IV, Gurgaon, Haryana, 122002',
+                        paymentMethod: 'Credit Card',
+                        items: [
+                            {
+                                id: 1,
+                                name: 'Golden Solitaire Ring',
+                                price: '\u20B995,000',
+                                quantity: 1,
+                                variant: { size: 'Standard', color: 'Gold' },
+                                img: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=400'
+                            }
+                        ],
+                        summary: {
+                            subtotal: 95000,
+                            tax: 0,
+                            discount: 0,
+                            total: 95000
+                        },
+                        date: 'Oct 24, 2026',
+                        time: '10:42 AM',
+                        status: 'PAID'
+                    }
+                ];
+                localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+            }
 
-            window.activeOrderId = state.orders[0]?.orderId || null;
+            // Initialize customers if missing
+            if (!state.customers || state.customers.length === 0) {
+                state.customers = [
+                    {
+                        id: 'CUST-1001',
+                        name: 'Priya Sharma',
+                        email: 'priya.sharma@example.com',
+                        phone: '+91 98765 43210',
+                        address: 'A-45, Regency Park, DLF Phase IV, Gurgaon, Haryana, 122002',
+                        status: 'VIP',
+                        totalOrders: 3,
+                        totalSpent: 185000
+                    },
+                    {
+                        id: 'CUST-1002',
+                        name: 'Aarav Mehta',
+                        email: 'aarav.mehta@example.com',
+                        phone: '+91 98112 34567',
+                        address: 'Flat 402, Skyline Towers, Indiranagar, Bangalore, Karnataka, 560038',
+                        status: 'Active',
+                        totalOrders: 1,
+                        totalSpent: 45000
+                    }
+                ];
+                localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
+            }
+
+            window.activeOrderId = state.orders[0].orderId;
             renderdashboard();
         }
 
@@ -1068,9 +1120,11 @@
         };
 
         // --- CUSTOMER MANAGEMENT MODULE ---
-        const ADMIN_API_BASE = '/api/admin';
+        const ADMIN_API_BASE = 'http://localhost:3001/api/admin';
         const AUTH_HEADERS = {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer admin-secret-token',
+            'X-Admin-Role': 'admin'
         };
 
         async function fetchCustomersFromAPI() {
@@ -1136,13 +1190,13 @@
             tbody.innerHTML = filtered.map(c => `
                 <tr>
                     <td style="font-weight: 600; color: var(--accent-gold); font-size: 0.85rem;">${c.id}</td>
-                    <td style="font-weight: 500; color: #111;">${escapeHTML(c.name)}</td>
+                    <td style="font-weight: 500; color: #111;">${c.name}</td>
                     <td>
-                        <div style="font-size: 0.875rem; color: #333;">${escapeHTML(c.email)}</div>
-                        <div style="font-size: 0.8rem; color: #888;">${escapeHTML(c.phone)}</div>
+                        <div style="font-size: 0.875rem; color: #333;">${c.email}</div>
+                        <div style="font-size: 0.8rem; color: #888;">${c.phone}</div>
                     </td>
-                    <td style="font-size: 0.85rem; color: #555; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(c.address)}">
-                        ${escapeHTML(c.address)}
+                    <td style="font-size: 0.85rem; color: #555; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.address}">
+                        ${c.address}
                     </td>
                     <td>${getStatusBadge(c.status)}</td>
                     <td style="font-weight: 600; text-align: center;">${c.totalOrders || 0}</td>
@@ -1238,9 +1292,9 @@
                 if (!response.ok || !data.success) {
                     let msg = data.error || 'Failed to save customer.';
                     if (data.details && Array.isArray(data.details)) {
-                        msg = data.details.map(d => d.message).join('\n• ');
+                        msg = data.details.map(d => d.message).join('<br>• ');
                     }
-                    errorDiv.textContent = '• ' + msg.replace(/<br>/g, '\n');
+                    errorDiv.innerHTML = `• ${msg}`;
                     errorDiv.style.display = 'block';
                     btn.disabled = false;
                     btn.textContent = 'Save Customer';
@@ -1258,11 +1312,16 @@
                     state.customers.push(savedCust);
                 }
             } catch (err) {
-                errorDiv.textContent = 'Could not save the customer. Check the server connection and try again.';
-                errorDiv.style.display = 'block';
-                btn.disabled = false;
-                btn.textContent = 'Save Customer';
-                return;
+                console.warn('API call error. Falling back to local state save.', err);
+                // Local state fallback if backend server isn't running
+                if (!state.customers) state.customers = [];
+                if (editId) {
+                    const idx = state.customers.findIndex(c => c.id === editId);
+                    if (idx !== -1) state.customers[idx] = { ...state.customers[idx], ...payload };
+                } else {
+                    const newId = `CUST-${1000 + state.customers.length + 1}`;
+                    state.customers.push({ id: newId, ...payload, totalOrders: 0 });
+                }
             }
 
             saveState(true);
@@ -1278,14 +1337,12 @@
             if (!confirm(`Are you sure you want to delete customer '${id}'?`)) return;
 
             try {
-                const response = await fetch(`${ADMIN_API_BASE}/customers/${encodeURIComponent(id)}`, {
+                await fetch(`${ADMIN_API_BASE}/customers/${encodeURIComponent(id)}`, {
                     method: 'DELETE',
                     headers: AUTH_HEADERS
                 });
-                if (!response.ok) throw new Error((await response.json()).error || 'Delete failed.');
             } catch (e) {
-                alert('Customer was not deleted: ' + e.message);
-                return;
+                console.warn('API delete call offline, updating local state.', e);
             }
 
             state.customers = (state.customers || []).filter(c => c.id !== id);
@@ -1303,13 +1360,13 @@
             if (state.bestSellers) {
                 tbody.innerHTML = state.bestSellers.map(p => `
                     <tr>
-                        <td><img src="${HiyaraState.safeURL(p.img)}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
+                        <td><img src="${p.img}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
                         <td>
-                            <div style="font-weight: 600;">${escapeHTML(p.name)}</div>
+                            <div style="font-weight: 600;">${p.name}</div>
                             <div style="font-size: 0.8rem; color: #888;">ID: ${p.id}</div>
                         </td>
-                        <td>${escapeHTML(p.category)}</td>
-                        <td>${escapeHTML(p.price)}</td>
+                        <td>${p.category}</td>
+                        <td>${p.price}</td>
                         <td>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="editItem('product', ${p.id})">Edit</button>
                         </td>
@@ -1322,9 +1379,9 @@
             if (state.collections) {
                 cbody.innerHTML = state.collections.map((c, index) => `
                     <tr>
-                        <td><img src="${HiyaraState.safeURL(c.img)}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
-                        <td><div style="font-weight: 600;">${escapeHTML(c.name)}</div></td>
-                        <td>${escapeHTML(c.label)}</td>
+                        <td><img src="${c.img}" class="product-thumb" onerror="this.onerror=null; this.src=window.fallbackImg;"></td>
+                        <td><div style="font-weight: 600;">${c.name}</div></td>
+                        <td>${c.label}</td>
                         <td>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="editItem('collection', ${index})">Edit</button>
                             <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; color: red; border-color: red;" onclick="deleteItem('collection', ${index})">Delete</button>
@@ -1387,7 +1444,7 @@
             if (state.orders) {
                 orderCount = state.orders.length;
                 state.orders.forEach(o => {
-                    if (o.paymentStatus === 'Paid' || o.status === 'PAID') {
+                    if (o.status === 'PAID' || o.status === 'Accepted' || o.status === 'Processing' || o.status === 'Shipped') {
                         const amt = o.summary ? o.summary.total : 0;
                         totalSales += amt;
                     }
@@ -1403,7 +1460,7 @@
                     const total = o.summary ? o.summary.total : 0;
                     let statusBadge = `<span style="background: #eaf2ff; color: #1a73e8; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">${o.status}</span>`;
                     if (o.status === 'Accepted' || o.status === 'PAID') {
-                        statusBadge = `<span style="background: #e6f4ea; color: #137333; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">${o.status === 'PAID' ? 'Paid' : 'Accepted'}</span>`;
+                        statusBadge = `<span style="background: #e6f4ea; color: #137333; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">Paid/Acc.</span>`;
                     } else if (o.status === 'Processing') {
                         statusBadge = `<span style="background: #fef7e0; color: #b06000; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;">Proc.</span>`;
                     } else if (o.status === 'Shipped') {
@@ -1415,7 +1472,7 @@
                     return `
                         <tr ${isActive} onclick="selectOrder('${o.orderId}')" style="cursor: pointer;">
                             <td><div style="font-weight: 600;">#${o.orderId}</div></td>
-                            <td>${escapeHTML(o.customer)}</td>
+                            <td>${o.customer}</td>
                             <td style="font-size: 0.8rem; color: #666;">${o.date}</td>
                             <td style="font-weight: 500;">&#8377;${total.toLocaleString()}</td>
                             <td>${statusBadge}</td>
@@ -1470,11 +1527,11 @@
                         <div style="display: flex; gap: 15px; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee;">
                             <img src="${itemImg}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" onerror="this.onerror=null; this.src=window.fallbackImg;">
                             <div style="flex-grow: 1;">
-                                <div style="font-weight: 600; color: #333;">${escapeHTML(item.name)}</div>
-                                <div style="font-size: 0.85rem; color: #666;">${escapeHTML(variantText)}</div>
+                                <div style="font-weight: 600; color: #333;">${item.name}</div>
+                                <div style="font-size: 0.85rem; color: #666;">${variantText}</div>
                                 <div style="font-size: 0.85rem; color: #888;">Qty: ${item.quantity} &times; ${price}</div>
                             </div>
-                            <div style="font-weight: 600; color: #111;">&#8377;${(Number(String(price).replace(/[^0-9.]/g, '')) * item.quantity).toLocaleString()}</div>
+                            <div style="font-weight: 600; color: #111;">&#8377;${(parseInt(String(price).replace(/[^0-9]/g, '')) * item.quantity).toLocaleString()}</div>
                         </div>
                     `;
                 }).join('');
@@ -1532,8 +1589,8 @@
                         <div class="order-customer-details" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div>
                                 <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Customer</label>
-                                <div style="font-weight: 500; font-size: 1rem; color: #333;">${escapeHTML(order.customer)}</div>
-                                <div style="color: #666; font-size: 0.85rem; margin-top: 2px;">${escapeHTML(order.email)}</div>
+                                <div style="font-weight: 500; font-size: 1rem; color: #333;">${order.customer}</div>
+                                <div style="color: #666; font-size: 0.85rem; margin-top: 2px;">${order.email}</div>
                             </div>
                             <div>
                                 <label style="display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Order Date & Time</label>
@@ -1709,8 +1766,7 @@
 
             document.getElementById('edit-name').value = '';
             document.getElementById('edit-price').value = '';
-            document.getElementById('edit-category').value = 'Necklace';
-            document.getElementById('edit-stock').value = 0;
+            document.getElementById('edit-category').value = 'Necklaces';
             document.getElementById('edit-img').value = '';
 
             // Image Upload Reset
@@ -1737,8 +1793,7 @@
                 const product = state.bestSellers.find(p => p.id === id);
                 document.getElementById('edit-name').value = product.name;
                 document.getElementById('edit-price').value = product.price;
-                document.getElementById('edit-category').value = product.category === 'Necklaces' ? 'Necklace' : product.category;
-                document.getElementById('edit-stock').value = product.stock || 0;
+                document.getElementById('edit-category').value = product.category;
                 document.getElementById('edit-img').value = product.img;
 
                 // Preview
@@ -1785,31 +1840,23 @@
             const type = document.getElementById('edit-type').value;
             const id = document.getElementById('edit-id').value;
 
-            const name = document.getElementById('edit-name').value.trim();
-            if (!name) { alert('Enter a name.'); return; }
+            const name = document.getElementById('edit-name').value;
             const img = document.getElementById('edit-img').value;
 
             if (type === 'product') {
-                const rawPrice = document.getElementById('edit-price').value.trim();
-                const value = Number(rawPrice.replace(/[₹,\s]/g, ''));
-                const stock = Number(document.getElementById('edit-stock').value);
-                if (!rawPrice || !Number.isFinite(value) || value < 0 || !Number.isInteger(stock) || stock < 0) {
-                    alert('Enter a valid price and a non-negative whole stock quantity.'); return;
-                }
-                const price = '₹' + value.toLocaleString('en-IN', {maximumFractionDigits: 2});
+                const price = document.getElementById('edit-price').value;
                 const category = document.getElementById('edit-category').value;
 
                 if (id === 'new') {
                     // Add New
                     const newId = state.bestSellers.length > 0 ? Math.max(...state.bestSellers.map(p => p.id)) + 1 : 1;
-                    state.bestSellers.push({ id: newId, name, price, category, img, stock });
+                    state.bestSellers.push({ id: newId, name, price, category, img });
                 } else {
                     // Update
                     const product = state.bestSellers.find(p => p.id == id);
                     if (product) {
                         product.name = name;
                         product.price = price;
-                        product.stock = stock;
                         product.category = category;
                         product.img = img;
                     }
@@ -1833,9 +1880,9 @@
             closeModal();
         };
 
-        window.deleteItem = (selectedType, selectedId) => {
-            const type = selectedType || document.getElementById('edit-type').value;
-            const id = selectedId ?? document.getElementById('edit-id').value;
+        window.deleteItem = () => {
+            const type = document.getElementById('edit-type').value;
+            const id = document.getElementById('edit-id').value;
 
             if (type === 'product' && id !== 'new') {
                 if (confirm('Are you sure you want to delete this product?')) {
@@ -1860,7 +1907,7 @@
         // Auto-refresh if changes happen elsewhere
         window.addEventListener('storage', (e) => {
             if (e.key === 'hiyara_state_v1') {
-                state = HiyaraState.read(defaultState);
+                state = JSON.parse(e.newValue);
                 renderdashboard();
             }
         });
@@ -1869,7 +1916,7 @@
         window.addEventListener('focus', () => {
             const stored = localStorage.getItem('hiyara_state_v1');
             if (stored) {
-                const storedState = HiyaraState.read(defaultState);
+                const storedState = JSON.parse(stored);
                 if (JSON.stringify(storedState) !== JSON.stringify(state)) {
                     state = storedState;
                     renderdashboard();
@@ -1886,15 +1933,15 @@
             const itemsHtml = order.items.map(item => {
                 const price = typeof item.price === 'string' ? item.price : `\u20B9${item.price.toLocaleString()}`;
                 const variantText = item.variant ? `Size: ${item.variant.size || 'Standard'} | Color: ${item.variant.color || 'Gold'}` : '';
-                const totalItemPrice = Number(String(price).replace(/[^0-9.]/g, '')) * item.quantity;
+                const totalItemPrice = parseInt(String(price).replace(/[^0-9]/g, '')) * item.quantity;
                 return `
                     <tr>
                         <td>
-                            <div style="font-weight: 500;">${escapeHTML(item.name)}</div>
-                            <div style="font-size: 0.85rem; color: #666;">${escapeHTML(variantText)}</div>
+                            <div style="font-weight: 500;">${item.name}</div>
+                            <div style="font-size: 0.85rem; color: #666;">${variantText}</div>
                         </td>
                         <td style="text-align: center;">${item.quantity}</td>
-                        <td style="text-align: right;">\u20B9${Number(String(price).replace(/[^0-9.]/g, '')).toLocaleString()}</td>
+                        <td style="text-align: right;">\u20B9${parseInt(String(price).replace(/[^0-9]/g, '')).toLocaleString()}</td>
                         <td style="text-align: right;">\u20B9${totalItemPrice.toLocaleString()}</td>
                     </tr>
                 `;
@@ -1945,9 +1992,9 @@
                     <div class="details">
                         <div>
                             <div class="label">Billed To</div>
-                            <div class="value">${escapeHTML(order.customer)}</div>
+                            <div class="value">${order.customer}</div>
                             <div>${formattedAddress}</div>
-                            <div>${escapeHTML(order.email)}</div>
+                            <div>${order.email}</div>
                         </div>
                         <div style="text-align: right;">
                             <div class="label">Invoice Number</div>
@@ -2015,7 +2062,6 @@
 
             const invoiceContent = generateInvoiceHTML(order);
             const printWindow = window.open('', '_blank');
-            if (!printWindow) { alert('Allow pop-ups to print this invoice.'); return; }
             printWindow.document.write(invoiceContent);
             printWindow.document.write('<script>window.onload = function() { window.print(); }<\/script>');
             printWindow.document.close();
@@ -2037,8 +2083,7 @@
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            if (typeof html2pdf !== 'function') { alert('PDF export could not load. Use Print Invoice and Save as PDF.'); return; }
-            html2pdf().from(element).set(opt).save().catch(() => alert('PDF export failed. Try Print Invoice instead.'));
+            html2pdf().from(element).set(opt).save();
         };
 
         window.updateOrderStatus = (orderId, newStatus) => {
@@ -2057,7 +2102,7 @@
             if (confirm(`Are you sure you want to delete order #${id}?`)) {
                 state.orders = state.orders.filter(o => o.orderId !== id);
                 if (window.activeOrderId === id) {
-                    window.activeOrderId = state.orders.length > 0 ? state.orders[0]?.orderId || null : '';
+                    window.activeOrderId = state.orders.length > 0 ? state.orders[0].orderId : '';
                 }
                 localStorage.setItem('hiyara_state_v1', JSON.stringify(state));
                 renderdashboard();

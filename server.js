@@ -9,6 +9,7 @@ const path = require('path');
 
 const Store = require('./database/store');
 const SessionService = require('./services/sessionService');
+const RazorpayService = require('./services/razorpayService');
 const { verifyPassword } = require('./services/passwordService');
 const { verifyAdminAuth } = require('./middleware/auth');
 const { validateCustomerPayload } = require('./validators/customerValidator');
@@ -17,9 +18,10 @@ const { logAdminAction } = require('./services/auditLogger');
 const PORT = process.env.PORT || 3001;
 
 function setCorsHeaders(res) {
-    // The storefront and API share an origin; do not expose admin APIs cross-origin.
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Role');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 }
 
 function sendJsonResponse(res, statusCode, body, customHeaders = {}) {
@@ -33,21 +35,23 @@ function sendJsonResponse(res, statusCode, body, customHeaders = {}) {
 
 function parseRequestBody(req) {
     return new Promise((resolve, reject) => {
-        const chunks = [];
-        let size = 0;
+        let body = '';
         req.on('data', chunk => {
-            size += chunk.length;
-            if (size <= 1e6) chunks.push(chunk);
+            body += chunk.toString();
+            if (body.length > 1e6) { // 1MB size limit
+                req.destroy();
+                reject(new Error('Payload too large'));
+            }
         });
         req.on('end', () => {
-            if (size > 1e6) return reject(Object.assign(new Error('Payload too large'), { statusCode: 413 }));
             try {
-                const body = Buffer.concat(chunks).toString('utf8');
-                const data = body.trim() ? JSON.parse(body) : {};
-                if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
-                resolve(data);
-            } catch {
-                reject(Object.assign(new Error('A valid JSON object is required.'), { statusCode: 400 }));
+                if (!body.trim()) {
+                    resolve({});
+                } else {
+                    resolve(JSON.parse(body));
+                }
+            } catch (err) {
+                reject(new Error('Invalid JSON format'));
             }
         });
         req.on('error', reject);
@@ -55,11 +59,8 @@ function parseRequestBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-    try {
-    const reqUrl = new URL(req.url, 'http://localhost');
-    let pathname;
-    try { pathname = decodeURIComponent(reqUrl.pathname); }
-    catch { return sendJsonResponse(res, 400, { success: false, error: 'Invalid URL encoding.' }); }
+    const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost:3001'}`);
+    const pathname = reqUrl.pathname;
     const method = req.method.toUpperCase();
 
     // Handle CORS preflight
@@ -76,18 +77,18 @@ const server = http.createServer(async (req, res) => {
         try {
             const { email, password } = await parseRequestBody(req);
 
-            if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password || email.length > 254 || password.length > 1024) {
+            if (!email || !password) {
                 return sendJsonResponse(res, 400, {
                     success: false,
                     error: 'Email and password are required.'
                 });
             }
 
-            const user = Store.getUserByEmail(email.trim());
+            const user = Store.getUserByEmail(email);
             if (!user) {
                 return sendJsonResponse(res, 401, {
                     success: false,
-                    error: 'Invalid email or password.'
+                    error: 'Invalid credentials. User account not found.'
                 });
             }
 
@@ -96,7 +97,7 @@ const server = http.createServer(async (req, res) => {
             if (!isPasswordValid) {
                 return sendJsonResponse(res, 401, {
                     success: false,
-                    error: 'Invalid email or password.'
+                    error: 'Invalid credentials. Password verification failed.'
                 });
             }
 
@@ -132,7 +133,7 @@ const server = http.createServer(async (req, res) => {
                 }
             }, { 'Set-Cookie': cookieHeader });
         } catch (err) {
-            return sendJsonResponse(res, err.statusCode || 500, { success: false, error: err.statusCode ? err.message : 'Internal server error.' });
+            return sendJsonResponse(res, 500, { success: false, error: err.message });
         }
     }
 
@@ -162,6 +163,106 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
+    // --- RAZORPAY PAYMENT GATEWAY ROUTES ---
+
+    // GET /api/razorpay-config (Expose public Key ID to frontend)
+    if (pathname === '/api/razorpay-config' && method === 'GET') {
+        return sendJsonResponse(res, 200, {
+            success: true,
+            keyId: RazorpayService.getKeyId()
+        });
+    }
+
+    // POST /api/create-razorpay-order (Create order for UPI / GPay / Card checkout)
+    if (pathname === '/api/create-razorpay-order' && method === 'POST') {
+        try {
+            const payload = await parseRequestBody(req);
+            const { amount, currency, receipt, notes } = payload;
+
+            if (amount === undefined || amount === null || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+                return sendJsonResponse(res, 400, {
+                    success: false,
+                    error: 'A valid order amount greater than 0 is required.'
+                });
+            }
+
+            const order = await RazorpayService.createOrder({
+                amount: parseFloat(amount),
+                currency: currency || 'INR',
+                receipt,
+                notes: notes || {}
+            });
+
+            return sendJsonResponse(res, 200, {
+                success: true,
+                order
+            });
+        } catch (err) {
+            return sendJsonResponse(res, 500, {
+                success: false,
+                error: err.message
+            });
+        }
+    }
+
+    // POST /api/verify-razorpay-payment (HMAC SHA-256 Signature Verification)
+    if (pathname === '/api/verify-razorpay-payment' && method === 'POST') {
+        try {
+            const payload = await parseRequestBody(req);
+            const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderDetails } = payload;
+
+            if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+                return sendJsonResponse(res, 400, {
+                    success: false,
+                    verified: false,
+                    error: 'Missing required parameters (razorpay_order_id, razorpay_payment_id, razorpay_signature).'
+                });
+            }
+
+            const isValid = RazorpayService.verifyPaymentSignature({
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature
+            });
+
+            if (!isValid) {
+                return sendJsonResponse(res, 400, {
+                    success: false,
+                    verified: false,
+                    error: 'Payment verification failed: Invalid HMAC SHA-256 signature.'
+                });
+            }
+
+            // Structured audit log for successful payment
+            logAdminAction({
+                adminUser: orderDetails?.customer || 'Customer Checkout',
+                action: 'PAYMENT_VERIFIED',
+                customerId: razorpay_payment_id,
+                changes: {
+                    orderId: razorpay_order_id,
+                    paymentId: razorpay_payment_id,
+                    method: orderDetails?.paymentMethod || 'Razorpay UPI / Google Pay',
+                    amount: orderDetails?.summary?.total || null
+                },
+                ipAddress: req.socket.remoteAddress
+            });
+
+            return sendJsonResponse(res, 200, {
+                success: true,
+                verified: true,
+                message: 'Payment signature verified successfully.',
+                paymentId: razorpay_payment_id,
+                orderId: razorpay_order_id
+            });
+        } catch (err) {
+            return sendJsonResponse(res, 500, {
+                success: false,
+                verified: false,
+                error: err.message
+            });
+        }
+    }
+
     // --- PROTECTED ADMIN API ROUTES ---
 
     // GET /api/admin/customers
@@ -174,7 +275,7 @@ const server = http.createServer(async (req, res) => {
             const customers = Store.getAllCustomers();
             return sendJsonResponse(res, 200, { success: true, count: customers.length, customers });
         } catch (err) {
-            return sendJsonResponse(res, err.statusCode || 500, { success: false, error: err.statusCode ? err.message : 'Internal server error.' });
+            return sendJsonResponse(res, 500, { success: false, error: err.message });
         }
     }
 
@@ -229,7 +330,7 @@ const server = http.createServer(async (req, res) => {
             return sendJsonResponse(res, auth.statusCode, { success: false, error: auth.error });
         }
 
-        const customerId = pathname.replace('/api/admin/customers/', '');
+        const customerId = decodeURIComponent(pathname.replace('/api/admin/customers/', ''));
         if (!customerId) {
             return sendJsonResponse(res, 400, { success: false, error: 'Customer ID required in URL path.' });
         }
@@ -278,7 +379,7 @@ const server = http.createServer(async (req, res) => {
             return sendJsonResponse(res, auth.statusCode, { success: false, error: auth.error });
         }
 
-        const customerId = pathname.replace('/api/admin/customers/', '');
+        const customerId = decodeURIComponent(pathname.replace('/api/admin/customers/', ''));
         try {
             const deleted = Store.deleteCustomer(customerId);
             if (!deleted) {
@@ -295,7 +396,7 @@ const server = http.createServer(async (req, res) => {
 
             return sendJsonResponse(res, 200, { success: true, message: `Customer '${customerId}' deleted.` });
         } catch (err) {
-            return sendJsonResponse(res, err.statusCode || 500, { success: false, error: err.statusCode ? err.message : 'Internal server error.' });
+            return sendJsonResponse(res, 500, { success: false, error: err.message });
         }
     }
 
@@ -310,7 +411,7 @@ const server = http.createServer(async (req, res) => {
             const logs = Store.getAuditLogs();
             return sendJsonResponse(res, 200, { success: true, count: logs.length, logs });
         } catch (err) {
-            return sendJsonResponse(res, err.statusCode || 500, { success: false, error: err.statusCode ? err.message : 'Internal server error.' });
+            return sendJsonResponse(res, 500, { success: false, error: err.message });
         }
     }
 
@@ -326,33 +427,27 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    if (!['GET', 'HEAD'].includes(method)) {
-        return sendJsonResponse(res, 405, { success: false, error: 'Method not allowed.' }, { Allow: 'GET, HEAD' });
-    }
-    const relative = pathname === '/' ? 'index.html' : pathname === '/admin' ? 'admin.html' : pathname.slice(1);
-    const pages = new Set(['index.html', 'admin.html', 'admin-login.html']);
-    const allowedAsset = /^(assets|styles|scripts)\/[a-zA-Z0-9_ .\/-]+$/.test(relative)
-        && /\.(css|js|png|jpe?g|webp|gif|svg|ico|ttf|woff2?)$/i.test(relative)
-        && (!relative.startsWith('scripts/') || ['scripts/app.js', 'scripts/state-utils.js'].includes(relative)) && !relative.includes('..');
-    const filePath = path.resolve(__dirname, relative);
-    if ((!pages.has(relative) && !allowedAsset) || !filePath.startsWith(__dirname + path.sep)) {
-        return sendJsonResponse(res, 404, { success: false, error: 'Resource not found.' });
-    }
-    let content;
-    try { content = await fs.promises.readFile(filePath); }
-    catch { return sendJsonResponse(res, 404, { success: false, error: 'Resource not found.' }); }
-    const mimeTypes = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
-        '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff': 'font/woff',
-        '.woff2': 'font/woff2', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon' };
-    res.writeHead(200, { 'Content-Type': mimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-        'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Content-Length': content.length });
-    res.end(method === 'HEAD' ? undefined : content);
-    } catch (err) {
-        console.error('Request failed:', err.message);
-        if (!res.headersSent) sendJsonResponse(res, 500, { success: false, error: 'Internal server error.' });
-        else res.end();
-    }
+    let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
+    fs.stat(filePath, (err, stats) => {
+        if (err || !stats.isFile()) {
+            return sendJsonResponse(res, 404, { success: false, error: 'Resource not found' });
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+            '.html': 'text/html',
+            '.css': 'text/css',
+            '.js': 'text/javascript',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.svg': 'image/svg+xml'
+        };
+
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        fs.createReadStream(filePath).pipe(res);
+    });
 });
 
 if (require.main === module) {
