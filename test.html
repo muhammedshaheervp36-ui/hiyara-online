@@ -2484,8 +2484,43 @@
             }
 
             try {
-                // 1. Create order on backend
-                const orderRes = await fetch('/api/create-razorpay-order', {
+                // Helper to safely fetch JSON from endpoint candidates without crashing on HTML 404 pages
+                async function requestApiJson(endpoints, opts) {
+                    let lastError = null;
+                    for (const url of endpoints) {
+                        try {
+                            const res = await fetch(url, opts);
+                            const contentType = res.headers.get('content-type') || '';
+                            if (contentType.includes('application/json')) {
+                                const data = await res.json();
+                                return { ok: res.ok, status: res.status, data };
+                            }
+                            const rawText = await res.text();
+                            if (res.status === 404) {
+                                lastError = new Error(`Endpoint ${url} returned 404 Not Found.`);
+                                continue;
+                            }
+                            return {
+                                ok: res.ok,
+                                status: res.status,
+                                data: { success: false, error: `Server returned HTTP ${res.status}: ${rawText.substring(0, 120)}` }
+                            };
+                        } catch (err) {
+                            lastError = err;
+                        }
+                    }
+                    throw lastError || new Error(`Unable to connect to order API at ${endpoints[0]}. Ensure your backend server is running.`);
+                }
+
+                // 1. Create order on backend (supports Next.js route conventions & standalone server)
+                const orderEndpoints = [
+                    '/api/create-razorpay-order',
+                    '/api/razorpay/order',
+                    '/api/razorpay',
+                    'http://localhost:3001/api/create-razorpay-order'
+                ];
+
+                const orderResponse = await requestApiJson(orderEndpoints, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2496,12 +2531,11 @@
                     })
                 });
 
-                const orderData = await orderRes.json();
-                if (!orderRes.ok || !orderData.success) {
-                    throw new Error(orderData.error || 'Failed to initialize payment gateway.');
+                if (!orderResponse.ok || !orderResponse.data.success) {
+                    throw new Error(orderResponse.data?.error || 'Failed to initialize payment gateway.');
                 }
 
-                const razorpayOrder = orderData.order;
+                const razorpayOrder = orderResponse.data.order;
 
                 // 2. Configure and launch Razorpay Checkout SDK
                 const options = {
@@ -2538,7 +2572,13 @@
 
                         try {
                             // 3. Cryptographic HMAC SHA-256 signature verification on backend
-                            const verifyRes = await fetch('/api/verify-razorpay-payment', {
+                            const verifyEndpoints = [
+                                '/api/verify-razorpay-payment',
+                                '/api/razorpay/verify',
+                                'http://localhost:3001/api/verify-razorpay-payment'
+                            ];
+
+                            const verifyResponse = await requestApiJson(verifyEndpoints, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -2556,9 +2596,8 @@
                                 })
                             });
 
-                            const verifyData = await verifyRes.json();
-                            if (!verifyRes.ok || !verifyData.verified) {
-                                throw new Error(verifyData.error || 'Payment signature verification failed.');
+                            if (!verifyResponse.ok || !verifyResponse.data.verified) {
+                                throw new Error(verifyResponse.data?.error || 'Payment signature verification failed.');
                             }
 
                             // 4. Save confirmed order in store state & clear cart

@@ -165,16 +165,23 @@ const server = http.createServer(async (req, res) => {
 
     // --- RAZORPAY PAYMENT GATEWAY ROUTES ---
 
-    // GET /api/razorpay-config (Expose public Key ID to frontend)
-    if (pathname === '/api/razorpay-config' && method === 'GET') {
+    // GET /api/razorpay-config & /api/razorpay/config (Expose public Key ID to frontend)
+    if ((pathname === '/api/razorpay-config' || pathname === '/api/razorpay/config') && method === 'GET') {
         return sendJsonResponse(res, 200, {
             success: true,
             keyId: RazorpayService.getKeyId()
         });
     }
 
-    // POST /api/create-razorpay-order (Create order for UPI / GPay / Card checkout)
-    if (pathname === '/api/create-razorpay-order' && method === 'POST') {
+    // POST /api/create-razorpay-order & /api/razorpay/order (Create order for UPI / GPay / Card checkout)
+    const isOrderCreationRoute = [
+        '/api/create-razorpay-order',
+        '/api/razorpay/order',
+        '/api/razorpay/create-order',
+        '/api/razorpay'
+    ].includes(pathname);
+
+    if (isOrderCreationRoute && method === 'POST') {
         try {
             const payload = await parseRequestBody(req);
             const { amount, currency, receipt, notes } = payload;
@@ -205,8 +212,13 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    // POST /api/verify-razorpay-payment (HMAC SHA-256 Signature Verification)
-    if (pathname === '/api/verify-razorpay-payment' && method === 'POST') {
+    // POST /api/verify-razorpay-payment & /api/razorpay/verify (HMAC SHA-256 Signature Verification)
+    const isPaymentVerificationRoute = [
+        '/api/verify-razorpay-payment',
+        '/api/razorpay/verify'
+    ].includes(pathname);
+
+    if (isPaymentVerificationRoute && method === 'POST') {
         try {
             const payload = await parseRequestBody(req);
             const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderDetails } = payload;
