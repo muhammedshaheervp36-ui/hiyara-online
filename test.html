@@ -2514,10 +2514,10 @@
 
                 // 1. Create order on backend (supports Next.js route conventions & standalone server)
                 const orderEndpoints = [
+                    '/api/create-order',
+                    '/api/payment',
                     '/api/create-razorpay-order',
-                    '/api/razorpay/order',
-                    '/api/razorpay',
-                    'http://localhost:3001/api/create-razorpay-order'
+                    '/api/razorpay/order'
                 ];
 
                 const orderResponse = await requestApiJson(orderEndpoints, {
@@ -2573,9 +2573,9 @@
                         try {
                             // 3. Cryptographic HMAC SHA-256 signature verification on backend
                             const verifyEndpoints = [
+                                '/api/verify-payment',
                                 '/api/verify-razorpay-payment',
-                                '/api/razorpay/verify',
-                                'http://localhost:3001/api/verify-razorpay-payment'
+                                '/api/razorpay/verify'
                             ];
 
                             const verifyResponse = await requestApiJson(verifyEndpoints, {

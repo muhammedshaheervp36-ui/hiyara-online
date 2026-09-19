@@ -173,8 +173,10 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
-    // POST /api/create-razorpay-order & /api/razorpay/order (Create order for UPI / GPay / Card checkout)
+    // POST /api/create-order, /api/payment, /api/create-razorpay-order & /api/razorpay/order
     const isOrderCreationRoute = [
+        '/api/create-order',
+        '/api/payment',
         '/api/create-razorpay-order',
         '/api/razorpay/order',
         '/api/razorpay/create-order',
@@ -212,8 +214,9 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    // POST /api/verify-razorpay-payment & /api/razorpay/verify (HMAC SHA-256 Signature Verification)
+    // POST /api/verify-payment, /api/verify-razorpay-payment & /api/razorpay/verify (HMAC SHA-256 Signature Verification)
     const isPaymentVerificationRoute = [
+        '/api/verify-payment',
         '/api/verify-razorpay-payment',
         '/api/razorpay/verify'
     ].includes(pathname);
